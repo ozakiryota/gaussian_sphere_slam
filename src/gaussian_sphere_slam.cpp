@@ -108,7 +108,8 @@ GaussianSphereSLAM::GaussianSphereSLAM()
 	pub_pose = nh.advertise<geometry_msgs::PoseStamped>("/pose_dgauss", 1);
 	viewer.setBackgroundColor(1, 1, 1);
 	viewer.addCoordinateSystem(0.8, "axis");
-	viewer.setCameraPosition(0.0, 0.0, 50.0, 0.0, 0.0, 0.0);
+	// viewer.setCameraPosition(0.0, 0.0, 50.0, 0.0, 0.0, 0.0);
+	viewer.setCameraPosition(-20.0, 0.0, 10.0, 0.0, 0.0, 1.0);
 	rpy_cov_pub.data.resize(4);
 }
 
@@ -253,7 +254,8 @@ void GaussianSphereSLAM::FittingWalls_::Compute(GaussianSphereSLAM &mainclass, s
 		indices = mainclass.KdtreeSearch(mainclass.cloud->points[i], search_radius);
 		/*judge*/
 		// const size_t threshold_num_neighborpoints_dgauss = 5;
-		const size_t threshold_num_neighborpoints_dgauss = 20;
+		// const size_t threshold_num_neighborpoints_dgauss = 20;
+		const size_t threshold_num_neighborpoints_dgauss = 40;
 		if(indices.size()<threshold_num_neighborpoints_dgauss)	continue;
 		/*compute normal*/
 		float curvature;
@@ -405,19 +407,22 @@ pcl::PointXYZ GaussianSphereSLAM::PointTransformation(pcl::PointXYZ p, nav_msgs:
 	quaternionMsgToTF(target.pose.pose.orientation, q_pose_target);
 	/*linear*/
 	tf::Quaternion q_global_move(
-			target.pose.pose.position.x - origin.pose.pose.position.x,
-			target.pose.pose.position.y - origin.pose.pose.position.y,
-			target.pose.pose.position.z - origin.pose.pose.position.z,
-			0.0);
+		target.pose.pose.position.x - origin.pose.pose.position.x,
+		target.pose.pose.position.y - origin.pose.pose.position.y,
+		target.pose.pose.position.z - origin.pose.pose.position.z,
+		0.0);
 	tf::Quaternion q_local_move = q_pose_origin.inverse()*q_global_move*q_pose_origin;
 	Eigen::Vector3d vec_local_move(q_local_move.x(), q_local_move.y(), q_local_move.z());
 	Eigen::Vector3d vec_normal(p.x, p.y, p.z);
 	Eigen::Vector3d vec_vertical_local_move = (vec_local_move.dot(vec_normal)/vec_normal.dot(vec_normal))*vec_normal;
+	std::cout << "vec_normal: " << vec_normal << std::endl;
+	std::cout << "vec_local_move: " << vec_local_move << std::endl;
+	std::cout << "vec_vertical_local_move: " << vec_vertical_local_move << std::endl;
 	tf::Quaternion q_point_origin(
-			p.x - vec_vertical_local_move(0),
-			p.y - vec_vertical_local_move(1),
-			p.z - vec_vertical_local_move(2),
-			0.0);
+		p.x - vec_vertical_local_move(0),
+		p.y - vec_vertical_local_move(1),
+		p.z - vec_vertical_local_move(2),
+		0.0);
 	/*rotation*/
 	tf::Quaternion relative_rotation = q_pose_origin*q_pose_target.inverse();	//inverse rotation to pose change
 	relative_rotation.normalize();
@@ -438,7 +443,7 @@ bool GaussianSphereSLAM::MatchWalls(void)
 	bool succeeded_y = false;
 	double local_pose_error_rpy_sincosatan[3][3] = {};
 	tf::Quaternion q_ave_local_pose_error;
-	bool compute_local_pose_error_in_quaternion = false;
+	bool compute_local_pose_error_in_quaternion = true;
 
 	std::cout << "-------------------" << std::endl << "list_walls.size() = " << list_walls.size() << std::endl;
 	if(list_walls.empty()){
@@ -449,7 +454,7 @@ bool GaussianSphereSLAM::MatchWalls(void)
 		// const double ratio_matching_norm_dif = 0.2;
 		// const double min_matching_norm_dif = 0.5;	//[m]
 		const double threshold_matching_norm_dif = 0.5;	//[m]
-		const double threshold_matching_angle = 10.0;	//[deg]
+		const double threshold_matching_angle = 5.0;	//[deg]
 		const int threshold_count_match = 5;
 		const int k = 1;
 		kdtree.setInputCloud(d_gaussian_sphere_registered);
@@ -538,8 +543,8 @@ bool GaussianSphereSLAM::MatchWalls(void)
 			tf::Matrix3x3(q_pose_odom_now*q_ave_local_pose_error).getRPY(rpy_cov_pub.data[0], rpy_cov_pub.data[1], rpy_cov_pub.data[2]);
 			rpy_cov_pub.data[3] = 1.0e+0;
 
-			rpy_cov_pub.data[0] = NAN;
-			rpy_cov_pub.data[1] = NAN;
+			// rpy_cov_pub.data[0] = NAN;
+			// rpy_cov_pub.data[1] = NAN;
 		}
 		return succeeded_y;
 	}
