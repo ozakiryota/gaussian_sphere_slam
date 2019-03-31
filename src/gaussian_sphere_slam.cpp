@@ -51,6 +51,7 @@ class GaussianSphereSLAM{
 		pcl::PointCloud<pcl::PointXYZ>::Ptr d_gaussian_sphere_registered {new pcl::PointCloud<pcl::PointXYZ>};
 		pcl::PointCloud<pcl::PointNormal>::Ptr d_gaussian_sphere_registered_n {new pcl::PointCloud<pcl::PointNormal>};
 		pcl::PointCloud<pcl::PointNormal>::Ptr d_gaussian_sphere_newregistered_n {new pcl::PointCloud<pcl::PointNormal>};
+		pcl::PointCloud<pcl::PointNormal>::Ptr matching_lines {new pcl::PointCloud<pcl::PointNormal>};
 		/*objects*/
 		std::vector<WallInfo> list_walls;
 		std::vector<size_t> list_num_dgauss_cluster_belongings;
@@ -71,7 +72,7 @@ class GaussianSphereSLAM{
 		GaussianSphereSLAM();
 		void CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg);
 		void CallbackOdom(const nav_msgs::OdometryConstPtr& msg);
-		void CallbackInipose(const geometry_msgs::QuaternionConstPtr& msg);
+		// void CallbackInipose(const geometry_msgs::QuaternionConstPtr& msg);
 		void ClearPoints(void);
 		std::vector<int> KdtreeSearch(pcl::PointXYZ searchpoint, double search_radius);
 		double AngleBetweenVectors(pcl::PointNormal v1, pcl::PointNormal v2);
@@ -83,7 +84,6 @@ class GaussianSphereSLAM{
 		void InputNewWallInfo(pcl::PointXYZ p);
 		void KalmanFilterForRegistration(WallInfo& wall);
 		tf::Quaternion GetRelativeRotation(pcl::PointXYZ orgin, pcl::PointXYZ target);
-		void FinalEstimation(bool succeeded_rp, bool succeeded_y);
 		void Visualization(void);
 		void Publication(void);
 	protected:
@@ -103,13 +103,13 @@ GaussianSphereSLAM::GaussianSphereSLAM()
 {
 	sub_pc = nh.subscribe("/velodyne_points", 1, &GaussianSphereSLAM::CallbackPC, this);
 	sub_odom = nh.subscribe("/combined_odometry", 1, &GaussianSphereSLAM::CallbackOdom, this);
-	sub_inipose = nh.subscribe("/initial_pose", 1, &GaussianSphereSLAM::CallbackInipose, this);
+	// sub_inipose = nh.subscribe("/initial_pose", 1, &GaussianSphereSLAM::CallbackInipose, this);
 	pub_rpy = nh.advertise<std_msgs::Float64MultiArray>("/rpy_cov_walls", 1);
 	pub_pose = nh.advertise<geometry_msgs::PoseStamped>("/pose_dgauss", 1);
 	viewer.setBackgroundColor(1, 1, 1);
 	viewer.addCoordinateSystem(0.8, "axis");
 	// viewer.setCameraPosition(0.0, 0.0, 50.0, 0.0, 0.0, 0.0);
-	viewer.setCameraPosition(-20.0, 0.0, 10.0, 0.0, 0.0, 1.0);
+	viewer.setCameraPosition(-30.0, 0.0, 10.0, 0.0, 0.0, 1.0);
 	rpy_cov_pub.data.resize(4);
 }
 
@@ -118,18 +118,16 @@ void GaussianSphereSLAM::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 	// std::cout << "CALLBACK PC" << std::endl;
 	pcl::fromROSMsg(*msg, *cloud);
 	time_pub = msg->header.stamp;
-	// if(inipose_is_available)	pcl::transformPointCloud(*cloud, *cloud, Eigen::Vector3f(0.0, 0.0, 0.0), lidar_alignment);
 	ClearPoints();
 	kdtree.setInputCloud(cloud);
 	const int num_threads = std::thread::hardware_concurrency();
-	// std::cout << "std::thread::hardware_concurrency() = " << std::thread::hardware_concurrency() << std::endl;
-	// std::cout << "cloud->points.size() = " << cloud->points.size() << std::endl;
 	std::vector<std::thread> threads_fittingwalls;
 	std::vector<FittingWalls_> objects;
 	for(int i=0;i<num_threads;i++){
 		FittingWalls_ tmp_object;
 		objects.push_back(tmp_object);
 	}
+	double start_normal_est = ros::Time::now().toSec();
 	for(int i=0;i<num_threads;i++){
 		threads_fittingwalls.push_back(
 			std::thread([i, num_threads, &objects, this]{
@@ -139,16 +137,17 @@ void GaussianSphereSLAM::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 	}
 	for(std::thread &th : threads_fittingwalls)	th.join();
 	for(int i=0;i<num_threads;i++)	objects[i].Merge(*this);
+	std::cout << "normal estimation time[s] = " << ros::Time::now().toSec() - start_normal_est << std::endl;
 	
 	/*Decimate*/
 	std::cout << "d_gaussian_sphere->points.size() = " << d_gaussian_sphere->points.size() << std::endl;
 	const size_t max_points_num = 800;
 	if(d_gaussian_sphere->points.size()>max_points_num){
-		/*simple*/
-		double sparse_step = d_gaussian_sphere->points.size()/(double)max_points_num;
-		pcl::PointCloud<pcl::PointXYZ>::Ptr tmp_cloud {new pcl::PointCloud<pcl::PointXYZ>};
-		for(double a=0.0;a<d_gaussian_sphere->points.size();a+=sparse_step)	tmp_cloud->points.push_back(d_gaussian_sphere->points[a]);
-		d_gaussian_sphere = tmp_cloud;
+		// #<{(|simple|)}>#
+		// double sparse_step = d_gaussian_sphere->points.size()/(double)max_points_num;
+		// pcl::PointCloud<pcl::PointXYZ>::Ptr tmp_cloud {new pcl::PointCloud<pcl::PointXYZ>};
+		// for(double a=0.0;a<d_gaussian_sphere->points.size();a+=sparse_step)	tmp_cloud->points.push_back(d_gaussian_sphere->points[a]);
+		// d_gaussian_sphere = tmp_cloud;
 
 		// #<{(|multi threads|)}>#
 		// double sparse_step = d_gaussian_sphere->points.size()/(double)max_points_num;
@@ -177,7 +176,7 @@ void GaussianSphereSLAM::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 		// d_gaussian_sphere->points.clear();
 		// for(int i=0;i<num_threads;i++)	*d_gaussian_sphere += *decimating_objects[i].pc_decimated;
 
-		std::cout << "d_gaussian_sphere->points.size() = " << d_gaussian_sphere->points.size() << std::endl;
+		std::cout << "-> d_gaussian_sphere->points.size() = " << d_gaussian_sphere->points.size() << std::endl;
 	}
 
 	if(!first_callback_odom){
@@ -187,7 +186,6 @@ void GaussianSphereSLAM::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 		succeeded = MatchWalls();
 
 		if(succeeded){
-			// FinalEstimation();
 			Publication();
 		}
 	}
@@ -212,15 +210,14 @@ void GaussianSphereSLAM::CallbackOdom(const nav_msgs::OdometryConstPtr& msg)
 	first_callback_odom = false;
 }
 
-void GaussianSphereSLAM::CallbackInipose(const geometry_msgs::QuaternionConstPtr& msg)
-{
-	if(!inipose_is_available){
-		inipose_is_available = true;
-		tf::Quaternion q_inipose;
-		quaternionMsgToTF(*msg, q_inipose);
-		// q_inipose = tf::Quaternion(0.0, 0.0, 0.0, 1.0);	//test
-	}
-}
+// void GaussianSphereSLAM::CallbackInipose(const geometry_msgs::QuaternionConstPtr& msg)
+// {
+// 	if(!inipose_is_available){
+// 		inipose_is_available = true;
+// 		tf::Quaternion q_inipose;
+// 		quaternionMsgToTF(*msg, q_inipose);
+// 	}
+// }
 
 void GaussianSphereSLAM::ClearPoints(void)
 {
@@ -233,6 +230,7 @@ void GaussianSphereSLAM::ClearPoints(void)
 	d_gaussian_sphere_registered->points.clear();
 	d_gaussian_sphere_registered_n->points.clear();
 	d_gaussian_sphere_newregistered_n->points.clear();
+	matching_lines->points.clear();
 	list_num_dgauss_cluster_belongings.clear();
 }
 
@@ -242,8 +240,6 @@ void GaussianSphereSLAM::FittingWalls_::Compute(GaussianSphereSLAM &mainclass, s
 
 	const size_t skip_step = 3;
 	for(size_t i=i_start;i<i_end;i+=skip_step){
-		// bool input_to_gauss = true;
-		// bool input_to_dgauss = true;
 		/*search neighbor points*/
 		std::vector<int> indices;
 		double laser_distance = sqrt(mainclass.cloud->points[i].x*mainclass.cloud->points[i].x + mainclass.cloud->points[i].y*mainclass.cloud->points[i].y + mainclass.cloud->points[i].z*mainclass.cloud->points[i].z);
@@ -252,11 +248,6 @@ void GaussianSphereSLAM::FittingWalls_::Compute(GaussianSphereSLAM &mainclass, s
 		double search_radius = ratio*laser_distance;
 		if(search_radius<search_radius_min)	search_radius = search_radius_min;
 		indices = mainclass.KdtreeSearch(mainclass.cloud->points[i], search_radius);
-		/*judge*/
-		// const size_t threshold_num_neighborpoints_dgauss = 5;
-		// const size_t threshold_num_neighborpoints_dgauss = 20;
-		const size_t threshold_num_neighborpoints_dgauss = 40;
-		if(indices.size()<threshold_num_neighborpoints_dgauss)	continue;
 		/*compute normal*/
 		float curvature;
 		Eigen::Vector4f plane_parameters;
@@ -272,12 +263,17 @@ void GaussianSphereSLAM::FittingWalls_::Compute(GaussianSphereSLAM &mainclass, s
 		tmp_normal.curvature = curvature;
 		flipNormalTowardsViewpoint(tmp_normal, 0.0, 0.0, 0.0, tmp_normal.normal_x, tmp_normal.normal_y, tmp_normal.normal_z);
 		normals_->points.push_back(tmp_normal);
+		/*judge num*/
+		// const size_t threshold_num_neighborpoints_dgauss = 5;
+		const size_t threshold_num_neighborpoints_dgauss = 20;
+		// const size_t threshold_num_neighborpoints_dgauss = 40;
+		if(indices.size()<threshold_num_neighborpoints_dgauss)	continue;
 		/*delete nan*/
 		if(std::isnan(plane_parameters[0]) || std::isnan(plane_parameters[1]) || std::isnan(plane_parameters[2]))	continue;
-		/*judge*/
+		/*judge angle*/
 		const double threshold_angle = 30.0;	//[deg]
-		if(fabs(fabs(mainclass.AngleBetweenVectors(tmp_normal, mainclass.g_vector_from_ekf))-M_PI/2.0)>threshold_angle/180.0*M_PI)	continue;
-		/*judge*/
+		if(fabs(mainclass.AngleBetweenVectors(tmp_normal, mainclass.g_vector_from_ekf)-M_PI/2.0)>threshold_angle/180.0*M_PI)	continue;
+		/*judge error*/
 		const double threshold_fitting_error = 0.01;	//[m]
 		if(mainclass.ComputeSquareError(plane_parameters, indices)>threshold_fitting_error)	continue;
 		/*input*/
@@ -336,7 +332,7 @@ void GaussianSphereSLAM::ClusterDGauss(void)
 	// const double cluster_distance = 0.3;
 	const double cluster_distance = 0.2;
 	// const int min_num_cluster_belongings = 20;
-	const int min_num_cluster_belongings = 30;
+	const int min_num_cluster_belongings = 50;
 	pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
 	tree->setInputCloud(d_gaussian_sphere);
 	std::vector<pcl::PointIndices> cluster_indices;
@@ -371,7 +367,7 @@ void GaussianSphereSLAM::ClusterDGauss(void)
 		d_gaussian_sphere_clustered->points.push_back(tmp_centroid);
 		/*record number of belongings*/
 		list_num_dgauss_cluster_belongings.push_back(cluster_indices[i].indices.size());
-		/*for the Visualization*/
+		/*for Visualization*/
 		pcl::PointNormal tmp_centroid_n;
 		tmp_centroid_n.x = 0.0;
 		tmp_centroid_n.y = 0.0;
@@ -387,7 +383,7 @@ void GaussianSphereSLAM::CreateRegisteredCentroidCloud(void)
 {
 	for(size_t i=0;i<list_walls.size();i++){
 		d_gaussian_sphere_registered->points.push_back(PointTransformation(list_walls[i].point, list_walls[i].odom, odom_now));
-		/*for the visualization*/
+		/*for visualization*/
 		pcl::PointNormal tmp_normal;
 		tmp_normal.x = 0.0;
 		tmp_normal.y = 0.0;
@@ -415,9 +411,9 @@ pcl::PointXYZ GaussianSphereSLAM::PointTransformation(pcl::PointXYZ p, nav_msgs:
 	Eigen::Vector3d vec_local_move(q_local_move.x(), q_local_move.y(), q_local_move.z());
 	Eigen::Vector3d vec_normal(p.x, p.y, p.z);
 	Eigen::Vector3d vec_vertical_local_move = (vec_local_move.dot(vec_normal)/vec_normal.dot(vec_normal))*vec_normal;
-	std::cout << "vec_normal: " << vec_normal << std::endl;
-	std::cout << "vec_local_move: " << vec_local_move << std::endl;
-	std::cout << "vec_vertical_local_move: " << vec_vertical_local_move << std::endl;
+	// std::cout << "vec_normal: " << std::endl << vec_normal << std::endl;
+	// std::cout << "vec_local_move: " << std::endl << vec_local_move << std::endl;
+	// std::cout << "vec_vertical_local_move: " << std::endl << vec_vertical_local_move << std::endl;
 	tf::Quaternion q_point_origin(
 		p.x - vec_vertical_local_move(0),
 		p.y - vec_vertical_local_move(1),
@@ -477,7 +473,8 @@ bool GaussianSphereSLAM::MatchWalls(void)
 				if(list_walls[pointIdxNKNSearch[0]].fixed){
 					tf::Quaternion tmp_q_local_pose_error = GetRelativeRotation(d_gaussian_sphere_clustered->points[i], d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]]);
 					if(compute_local_pose_error_in_quaternion){
-						tmp_q_local_pose_error = tf::Quaternion(list_walls[pointIdxNKNSearch[0]].count_match*tmp_q_local_pose_error.x(), list_walls[pointIdxNKNSearch[0]].count_match*tmp_q_local_pose_error.y(), list_walls[pointIdxNKNSearch[0]].count_match*tmp_q_local_pose_error.z(), list_walls[pointIdxNKNSearch[0]].count_match*tmp_q_local_pose_error.w());
+						// tmp_q_local_pose_error = tf::Quaternion(list_walls[pointIdxNKNSearch[0]].count_match*tmp_q_local_pose_error.x(), list_walls[pointIdxNKNSearch[0]].count_match*tmp_q_local_pose_error.y(), list_walls[pointIdxNKNSearch[0]].count_match*tmp_q_local_pose_error.z(), list_walls[pointIdxNKNSearch[0]].count_match*tmp_q_local_pose_error.w());
+						tmp_q_local_pose_error = tf::Quaternion(list_walls[pointIdxNKNSearch[0]].count_match*tmp_q_local_pose_error.x(), list_walls[pointIdxNKNSearch[0]].count_match*tmp_q_local_pose_error.y(), list_walls[pointIdxNKNSearch[0]].count_match*tmp_q_local_pose_error.z(), tmp_q_local_pose_error.w());
 						if(!succeeded_y)	q_ave_local_pose_error = tmp_q_local_pose_error;
 						else	q_ave_local_pose_error += tmp_q_local_pose_error;
 					}
@@ -504,10 +501,19 @@ bool GaussianSphereSLAM::MatchWalls(void)
 					KalmanFilterForRegistration(list_walls[pointIdxNKNSearch[0]]);
 					if(list_walls[pointIdxNKNSearch[0]].count_match>threshold_count_match)	list_walls[pointIdxNKNSearch[0]].fixed = true;
 				}
+				/*visualize matching*/
+				pcl::PointNormal tmp_matching_line;
+				tmp_matching_line.x = d_gaussian_sphere_clustered->points[i].x;
+				tmp_matching_line.y = d_gaussian_sphere_clustered->points[i].y;
+				tmp_matching_line.z = d_gaussian_sphere_clustered->points[i].z;
+				tmp_matching_line.normal_x = d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].x - d_gaussian_sphere_clustered->points[i].x;
+				tmp_matching_line.normal_y = d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].y - d_gaussian_sphere_clustered->points[i].y;
+				tmp_matching_line.normal_z = d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].z - d_gaussian_sphere_clustered->points[i].z;
+				matching_lines->points.push_back(tmp_matching_line);
 			}
 			else{
 				InputNewWallInfo(d_gaussian_sphere_clustered->points[i]);
-				/*for the visualization*/
+				/*for visualization*/
 				pcl::PointNormal tmp_normal;
 				tmp_normal.x = 0.0;
 				tmp_normal.y = 0.0;
@@ -543,6 +549,7 @@ bool GaussianSphereSLAM::MatchWalls(void)
 			tf::Matrix3x3(q_pose_odom_now*q_ave_local_pose_error).getRPY(rpy_cov_pub.data[0], rpy_cov_pub.data[1], rpy_cov_pub.data[2]);
 			rpy_cov_pub.data[3] = 1.0e+0;
 
+			/*only yaw*/
 			// rpy_cov_pub.data[0] = NAN;
 			// rpy_cov_pub.data[1] = NAN;
 		}
@@ -669,6 +676,10 @@ void GaussianSphereSLAM::Visualization(void)
 	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 1.0, 1.0, 0.0, "d_gaussian_sphere_newregistered_n");
 	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 5, "d_gaussian_sphere_newregistered_n");
 	
+	viewer.addPointCloudNormals<pcl::PointNormal>(matching_lines, 1, 1.0, "matching_lines");
+	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 1.0, 0.0, 0.0, "matching_lines");
+	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 5, "matching_lines");
+
 	viewer.spinOnce();
 }
 

@@ -8,7 +8,7 @@
 	<!-- <node pkg="rosbag" type="play" name="player" args="&#45;&#45;clock /home/amsl/ozaki/bagfiles/mocap/0126_infant/no_lsd/2019&#45;01&#45;26&#45;16&#45;17&#45;58.bag"/> -->
 	<!-- <node pkg="rosbag" type="play" name="player" args="&#45;&#45;clock /home/amsl/ozaki/bagfiles/mocap/0126_infant/no_lsd/2019&#45;01&#45;26&#45;16&#45;39&#45;46.bag"/> -->
 	<!-- <node pkg="rosbag" type="play" name="player" args="&#45;&#45;clock /home/amsl/ozaki/bagfiles/mocap/0126_infant/no_lsd/2019&#45;01&#45;26&#45;17&#45;39&#45;44.bag"/> -->
-	<node pkg="rosbag" type="play" name="player" args="--clock /home/amsl/ozaki/bagfiles/mocap/0126_infant/no_lsd/2019-01-26-18-17-43.bag -s 40"/>
+	<node pkg="rosbag" type="play" name="player" args="--clock /home/amsl/ozaki/bagfiles/mocap/0126_infant/no_lsd/2019-01-26-18-17-43.bag -s 60"/>
 
 	<!-- rviz -->
 	<!-- <node pkg="rviz" type="rviz" name="rviz_startpoint" args="&#45;d /home/amsl/.rviz/trajectories_startpoint.rviz"/> -->
