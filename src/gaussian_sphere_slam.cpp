@@ -14,7 +14,7 @@
 #include <pcl/visualization/cloud_viewer.h>
 #include <tf/tf.h>
 #include <thread>
-#include <omp.h>
+// #include <omp.h>
 
 class GaussianSphereSLAM{
 	private:
@@ -115,7 +115,7 @@ GaussianSphereSLAM::GaussianSphereSLAM()
 
 void GaussianSphereSLAM::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 {
-	// std::cout << "CALLBACK PC" << std::endl;
+	std::cout << "CALLBACK PC" << std::endl;
 	pcl::fromROSMsg(*msg, *cloud);
 	time_pub = msg->header.stamp;
 	ClearPoints();
@@ -143,11 +143,11 @@ void GaussianSphereSLAM::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 	std::cout << "d_gaussian_sphere->points.size() = " << d_gaussian_sphere->points.size() << std::endl;
 	const size_t max_points_num = 800;
 	if(d_gaussian_sphere->points.size()>max_points_num){
-		// #<{(|simple|)}>#
-		// double sparse_step = d_gaussian_sphere->points.size()/(double)max_points_num;
-		// pcl::PointCloud<pcl::PointXYZ>::Ptr tmp_cloud {new pcl::PointCloud<pcl::PointXYZ>};
-		// for(double a=0.0;a<d_gaussian_sphere->points.size();a+=sparse_step)	tmp_cloud->points.push_back(d_gaussian_sphere->points[a]);
-		// d_gaussian_sphere = tmp_cloud;
+		/*simple*/
+		double sparse_step = d_gaussian_sphere->points.size()/(double)max_points_num;
+		pcl::PointCloud<pcl::PointXYZ>::Ptr tmp_cloud {new pcl::PointCloud<pcl::PointXYZ>};
+		for(double a=0.0;a<d_gaussian_sphere->points.size();a+=sparse_step)	tmp_cloud->points.push_back(d_gaussian_sphere->points[a]);
+		d_gaussian_sphere = tmp_cloud;
 
 		// #<{(|multi threads|)}>#
 		// double sparse_step = d_gaussian_sphere->points.size()/(double)max_points_num;
@@ -186,7 +186,7 @@ void GaussianSphereSLAM::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 		succeeded = MatchWalls();
 
 		if(succeeded){
-			Publication();
+			// Publication();
 		}
 	}
 	Visualization();
@@ -194,7 +194,7 @@ void GaussianSphereSLAM::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 
 void GaussianSphereSLAM::CallbackOdom(const nav_msgs::OdometryConstPtr& msg)
 {
-	// std::cout << "CALLBACK ODOM" << std::endl;
+	std::cout << "CALLBACK ODOM" << std::endl;
 	odom_now = *msg;
 	tf::Quaternion q_pose_from_ekf;
 	quaternionMsgToTF(odom_now.pose.pose.orientation, q_pose_from_ekf);
@@ -330,7 +330,7 @@ void GaussianSphereSLAM::ClusterDGauss(void)
 {
 	// std::cout << "POINT CLUSTER" << std::endl;
 	// const double cluster_distance = 0.3;
-	const double cluster_distance = 0.2;
+	const double cluster_distance = 0.1;
 	// const int min_num_cluster_belongings = 20;
 	const int min_num_cluster_belongings = 50;
 	pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
@@ -439,9 +439,9 @@ bool GaussianSphereSLAM::MatchWalls(void)
 	bool succeeded_y = false;
 	double local_pose_error_rpy_sincosatan[3][3] = {};
 	tf::Quaternion q_ave_local_pose_error;
-	bool compute_local_pose_error_in_quaternion = true;
+	bool compute_local_pose_error_in_quaternion = false;
 
-	std::cout << "-------------------" << std::endl << "list_walls.size() = " << list_walls.size() << std::endl;
+	std::cout << "list_walls.size() = " << list_walls.size() << std::endl;
 	if(list_walls.empty()){
 		for(size_t i=0;i<d_gaussian_sphere_clustered->points.size();i++) InputNewWallInfo(d_gaussian_sphere_clustered->points[i]);
 		return succeeded_y;
@@ -470,11 +470,12 @@ bool GaussianSphereSLAM::MatchWalls(void)
 				list_walls[pointIdxNKNSearch[0]].found_match = true;
 				list_walls[pointIdxNKNSearch[0]].count_match++;
 				list_walls[pointIdxNKNSearch[0]].count_nomatch = 0;
+
+				list_walls[pointIdxNKNSearch[0]].fixed = true;	//test
 				if(list_walls[pointIdxNKNSearch[0]].fixed){
 					tf::Quaternion tmp_q_local_pose_error = GetRelativeRotation(d_gaussian_sphere_clustered->points[i], d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]]);
 					if(compute_local_pose_error_in_quaternion){
 						// tmp_q_local_pose_error = tf::Quaternion(list_walls[pointIdxNKNSearch[0]].count_match*tmp_q_local_pose_error.x(), list_walls[pointIdxNKNSearch[0]].count_match*tmp_q_local_pose_error.y(), list_walls[pointIdxNKNSearch[0]].count_match*tmp_q_local_pose_error.z(), list_walls[pointIdxNKNSearch[0]].count_match*tmp_q_local_pose_error.w());
-						tmp_q_local_pose_error = tf::Quaternion(list_walls[pointIdxNKNSearch[0]].count_match*tmp_q_local_pose_error.x(), list_walls[pointIdxNKNSearch[0]].count_match*tmp_q_local_pose_error.y(), list_walls[pointIdxNKNSearch[0]].count_match*tmp_q_local_pose_error.z(), tmp_q_local_pose_error.w());
 						if(!succeeded_y)	q_ave_local_pose_error = tmp_q_local_pose_error;
 						else	q_ave_local_pose_error += tmp_q_local_pose_error;
 					}
