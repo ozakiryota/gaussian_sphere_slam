@@ -109,7 +109,7 @@ GaussianSphereSLAM::GaussianSphereSLAM()
 	viewer.setBackgroundColor(1, 1, 1);
 	viewer.addCoordinateSystem(0.8, "axis");
 	// viewer.setCameraPosition(0.0, 0.0, 50.0, 0.0, 0.0, 0.0);
-	viewer.setCameraPosition(-30.0, 0.0, 10.0, 0.0, 0.0, 1.0);
+	viewer.setCameraPosition(-30.0, 0.0, 20.0, 0.0, 0.0, 1.0);
 	rpy_cov_pub.data.resize(4);
 }
 
@@ -339,7 +339,7 @@ void GaussianSphereSLAM::ClusterDGauss(void)
 	// const double cluster_distance = 0.3;
 	const double cluster_distance = 0.1;
 	// const int min_num_cluster_belongings = 20;
-	const int min_num_cluster_belongings = 50;
+	const int min_num_cluster_belongings = 30;
 	pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
 	tree->setInputCloud(d_gaussian_sphere);
 	std::vector<pcl::PointIndices> cluster_indices;
@@ -478,7 +478,7 @@ bool GaussianSphereSLAM::MatchWalls(void)
 				list_walls[pointIdxNKNSearch[0]].count_match++;
 				list_walls[pointIdxNKNSearch[0]].count_nomatch = 0;
 
-				list_walls[pointIdxNKNSearch[0]].fixed = true;	//test
+				// list_walls[pointIdxNKNSearch[0]].fixed = true;	//test
 				if(list_walls[pointIdxNKNSearch[0]].fixed){
 					tf::Quaternion tmp_q_local_pose_error = GetRelativeRotation(d_gaussian_sphere_clustered->points[i], d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]]);
 					if(compute_local_pose_error_in_quaternion){
@@ -558,8 +558,8 @@ bool GaussianSphereSLAM::MatchWalls(void)
 			rpy_cov_pub.data[3] = 1.0e+0;
 
 			/*only yaw*/
-			// rpy_cov_pub.data[0] = NAN;
-			// rpy_cov_pub.data[1] = NAN;
+			// rpy_cov_pub.data[0] = NAN;	//test
+			// rpy_cov_pub.data[1] = NAN;	//test
 		}
 		return succeeded_y;
 	}
