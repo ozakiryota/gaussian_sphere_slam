@@ -139,9 +139,10 @@ void GaussianSphereSLAM::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 	}
 	for(std::thread &th : threads_fittingwalls)	th.join();
 	for(int i=0;i<num_threads;i++)	objects[i].Merge(*this);
-	std::cout << "normal estimation time[s] = " << ros::Time::now().toSec() - t_start_normal_est << std::endl;
+	std::cout << "time for normal estimation[s] = " << ros::Time::now().toSec() - t_start_normal_est << std::endl;
 	
 	/*Decimate*/
+	double t_start_decimation = ros::Time::now().toSec();
 	std::cout << "d_gaussian_sphere->points.size() = " << d_gaussian_sphere->points.size() << std::endl;
 	const size_t max_points_num = 800;
 	if(d_gaussian_sphere->points.size()>max_points_num){
@@ -180,6 +181,7 @@ void GaussianSphereSLAM::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 
 		std::cout << "-> d_gaussian_sphere->points.size() = " << d_gaussian_sphere->points.size() << std::endl;
 	}
+	std::cout << "time for decimation[s] = " << ros::Time::now().toSec() - t_start_decimation << std::endl;
 
 	if(!first_callback_odom){
 		bool succeeded = false;
@@ -695,6 +697,8 @@ void GaussianSphereSLAM::Publication(void)
 	pose_pub.header.frame_id = odom_now.header.frame_id;
 	pose_pub.header.stamp = time_pub;
 	pub_pose.publish(pose_pub);
+	
+	std::cout << "--------------------------" << std::endl;
 }
 
 int main(int argc, char** argv)
