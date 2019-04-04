@@ -115,6 +115,7 @@ GaussianSphereSLAM::GaussianSphereSLAM()
 
 void GaussianSphereSLAM::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 {
+	std::cout << "--------------------------" << std::endl;
 	std::cout << "CALLBACK PC" << std::endl;
 	double t_start_callback_pc = ros::Time::now().toSec();
 
@@ -351,6 +352,7 @@ void GaussianSphereSLAM::ClusterDGauss(void)
 	ece.setInputCloud(d_gaussian_sphere);
 	ece.extract(cluster_indices);
 
+	std::cout << "time for clustering[s] = " << ros::Time::now().toSec() - t_start_clustering << std::endl;
 	// std::cout << "cluster_indices.size() = " << cluster_indices.size() << std::endl;
 
 	pcl::ExtractIndices<pcl::PointXYZ> ei;
@@ -384,7 +386,6 @@ void GaussianSphereSLAM::ClusterDGauss(void)
 		tmp_centroid_n.normal_z = xyz_centroid[2];
 		d_gaussian_sphere_clustered_n->points.push_back(tmp_centroid_n);
 	}
-	std::cout << "time for clustering[s] = " << ros::Time::now().toSec() - t_start_clustering << std::endl;
 }
 
 void GaussianSphereSLAM::CreateRegisteredCentroidCloud(void)
@@ -698,9 +699,7 @@ void GaussianSphereSLAM::Publication(void)
 
 	pose_pub.header.frame_id = odom_now.header.frame_id;
 	pose_pub.header.stamp = time_pub;
-	pub_pose.publish(pose_pub);
-	
-	std::cout << "--------------------------" << std::endl;
+	pub_pose.publish(pose_pub);	
 }
 
 int main(int argc, char** argv)
