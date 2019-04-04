@@ -146,11 +146,11 @@ void GaussianSphereSLAM::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 	std::cout << "d_gaussian_sphere->points.size() = " << d_gaussian_sphere->points.size() << std::endl;
 	const size_t max_points_num = 800;
 	if(d_gaussian_sphere->points.size()>max_points_num){
-		/* #<{(|simple|)}># */
-		/* double sparse_step = d_gaussian_sphere->points.size()/(double)max_points_num; */
-		/* pcl::PointCloud<pcl::PointXYZ>::Ptr tmp_cloud {new pcl::PointCloud<pcl::PointXYZ>}; */
-		/* for(double a=0.0;a<d_gaussian_sphere->points.size();a+=sparse_step)	tmp_cloud->points.push_back(d_gaussian_sphere->points[a]); */
-		/* d_gaussian_sphere = tmp_cloud; */
+		/*simple*/
+		double sparse_step = d_gaussian_sphere->points.size()/(double)max_points_num;
+		pcl::PointCloud<pcl::PointXYZ>::Ptr tmp_cloud {new pcl::PointCloud<pcl::PointXYZ>};
+		for(double a=0.0;a<d_gaussian_sphere->points.size();a+=sparse_step)	tmp_cloud->points.push_back(d_gaussian_sphere->points[a]);
+		d_gaussian_sphere = tmp_cloud;
 
 		// #<{(|multi threads|)}>#
 		// double sparse_step = d_gaussian_sphere->points.size()/(double)max_points_num;
@@ -335,7 +335,6 @@ double GaussianSphereSLAM::ComputeSquareError(Eigen::Vector4f plane_parameters, 
 void GaussianSphereSLAM::ClusterDGauss(void)
 {
 	// std::cout << "POINT CLUSTER" << std::endl;
-	double t_start_clustering = ros::Time::now().toSec();
 
 	// const double cluster_distance = 0.3;
 	const double cluster_distance = 0.1;
@@ -352,7 +351,6 @@ void GaussianSphereSLAM::ClusterDGauss(void)
 	ece.setInputCloud(d_gaussian_sphere);
 	ece.extract(cluster_indices);
 
-	std::cout << "time for clustering[s] = " << ros::Time::now().toSec() - t_start_clustering << std::endl;
 	// std::cout << "cluster_indices.size() = " << cluster_indices.size() << std::endl;
 
 	pcl::ExtractIndices<pcl::PointXYZ> ei;
