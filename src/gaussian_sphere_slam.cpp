@@ -116,6 +116,8 @@ GaussianSphereSLAM::GaussianSphereSLAM()
 void GaussianSphereSLAM::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 {
 	std::cout << "CALLBACK PC" << std::endl;
+	double t_start_callback_pc = ros::Time::now().toSec();
+
 	pcl::fromROSMsg(*msg, *cloud);
 	time_pub = msg->header.stamp;
 	ClearPoints();
@@ -127,7 +129,7 @@ void GaussianSphereSLAM::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 		FittingWalls_ tmp_object;
 		objects.push_back(tmp_object);
 	}
-	double start_normal_est = ros::Time::now().toSec();
+	double t_start_normal_est = ros::Time::now().toSec();
 	for(int i=0;i<num_threads;i++){
 		threads_fittingwalls.push_back(
 			std::thread([i, num_threads, &objects, this]{
@@ -137,7 +139,7 @@ void GaussianSphereSLAM::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 	}
 	for(std::thread &th : threads_fittingwalls)	th.join();
 	for(int i=0;i<num_threads;i++)	objects[i].Merge(*this);
-	std::cout << "normal estimation time[s] = " << ros::Time::now().toSec() - start_normal_est << std::endl;
+	std::cout << "normal estimation time[s] = " << ros::Time::now().toSec() - t_start_normal_est << std::endl;
 	
 	/*Decimate*/
 	std::cout << "d_gaussian_sphere->points.size() = " << d_gaussian_sphere->points.size() << std::endl;
@@ -190,6 +192,8 @@ void GaussianSphereSLAM::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 		}
 	}
 	Visualization();
+	
+	std::cout << "time for CallbackPC[s] = " << ros::Time::now().toSec() - t_start_callback_pc << std::endl;
 }
 
 void GaussianSphereSLAM::CallbackOdom(const nav_msgs::OdometryConstPtr& msg)
@@ -329,10 +333,8 @@ double GaussianSphereSLAM::ComputeSquareError(Eigen::Vector4f plane_parameters, 
 void GaussianSphereSLAM::ClusterDGauss(void)
 {
 	// std::cout << "POINT CLUSTER" << std::endl;
-	double start_clustering = ros::Time::now().toSec();
-
 	// const double cluster_distance = 0.3;
-	const double cluster_distance = 0.01;
+	const double cluster_distance = 0.1;
 	// const int min_num_cluster_belongings = 20;
 	const int min_num_cluster_belongings = 50;
 	pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
@@ -379,7 +381,6 @@ void GaussianSphereSLAM::ClusterDGauss(void)
 		tmp_centroid_n.normal_z = xyz_centroid[2];
 		d_gaussian_sphere_clustered_n->points.push_back(tmp_centroid_n);
 	}
-	std::cout << "clustering time[s] = " << ros::Time::now().toSec() - start_clustering << std::endl;
 }
 
 void GaussianSphereSLAM::CreateRegisteredCentroidCloud(void)
