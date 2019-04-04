@@ -181,11 +181,9 @@ void GaussianSphereSLAM::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 		std::cout << "-> d_gaussian_sphere->points.size() = " << d_gaussian_sphere->points.size() << std::endl;
 	}
 
-	double t_start_clustering = ros::Time::now().toSec();
 	if(!first_callback_odom){
 		bool succeeded = false;
 		ClusterDGauss();
-		std::cout << "time for clustering[s] = " << ros::Time::now().toSec() - t_start_clustering << std::endl;
 		CreateRegisteredCentroidCloud();
 		succeeded = MatchWalls();
 
@@ -336,6 +334,8 @@ double GaussianSphereSLAM::ComputeSquareError(Eigen::Vector4f plane_parameters, 
 void GaussianSphereSLAM::ClusterDGauss(void)
 {
 	// std::cout << "POINT CLUSTER" << std::endl;
+	double t_start_clustering = ros::Time::now().toSec();
+
 	// const double cluster_distance = 0.3;
 	const double cluster_distance = 0.1;
 	// const int min_num_cluster_belongings = 20;
@@ -384,6 +384,7 @@ void GaussianSphereSLAM::ClusterDGauss(void)
 		tmp_centroid_n.normal_z = xyz_centroid[2];
 		d_gaussian_sphere_clustered_n->points.push_back(tmp_centroid_n);
 	}
+	std::cout << "time for clustering[s] = " << ros::Time::now().toSec() - t_start_clustering << std::endl;
 }
 
 void GaussianSphereSLAM::CreateRegisteredCentroidCloud(void)
