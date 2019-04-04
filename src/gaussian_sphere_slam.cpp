@@ -329,8 +329,10 @@ double GaussianSphereSLAM::ComputeSquareError(Eigen::Vector4f plane_parameters, 
 void GaussianSphereSLAM::ClusterDGauss(void)
 {
 	// std::cout << "POINT CLUSTER" << std::endl;
+	double start_clustering = ros::Time::now().toSec();
+
 	// const double cluster_distance = 0.3;
-	const double cluster_distance = 0.1;
+	const double cluster_distance = 0.01;
 	// const int min_num_cluster_belongings = 20;
 	const int min_num_cluster_belongings = 50;
 	pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
@@ -377,6 +379,7 @@ void GaussianSphereSLAM::ClusterDGauss(void)
 		tmp_centroid_n.normal_z = xyz_centroid[2];
 		d_gaussian_sphere_clustered_n->points.push_back(tmp_centroid_n);
 	}
+	std::cout << "clustering time[s] = " << ros::Time::now().toSec() - start_clustering << std::endl;
 }
 
 void GaussianSphereSLAM::CreateRegisteredCentroidCloud(void)
