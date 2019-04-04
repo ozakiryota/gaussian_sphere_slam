@@ -142,15 +142,14 @@ void GaussianSphereSLAM::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 	std::cout << "time for normal estimation[s] = " << ros::Time::now().toSec() - t_start_normal_est << std::endl;
 	
 	/*Decimate*/
-	double t_start_decimation = ros::Time::now().toSec();
 	std::cout << "d_gaussian_sphere->points.size() = " << d_gaussian_sphere->points.size() << std::endl;
 	const size_t max_points_num = 800;
 	if(d_gaussian_sphere->points.size()>max_points_num){
-		/*simple*/
-		double sparse_step = d_gaussian_sphere->points.size()/(double)max_points_num;
-		pcl::PointCloud<pcl::PointXYZ>::Ptr tmp_cloud {new pcl::PointCloud<pcl::PointXYZ>};
-		for(double a=0.0;a<d_gaussian_sphere->points.size();a+=sparse_step)	tmp_cloud->points.push_back(d_gaussian_sphere->points[a]);
-		d_gaussian_sphere = tmp_cloud;
+		/* #<{(|simple|)}># */
+		/* double sparse_step = d_gaussian_sphere->points.size()/(double)max_points_num; */
+		/* pcl::PointCloud<pcl::PointXYZ>::Ptr tmp_cloud {new pcl::PointCloud<pcl::PointXYZ>}; */
+		/* for(double a=0.0;a<d_gaussian_sphere->points.size();a+=sparse_step)	tmp_cloud->points.push_back(d_gaussian_sphere->points[a]); */
+		/* d_gaussian_sphere = tmp_cloud; */
 
 		// #<{(|multi threads|)}>#
 		// double sparse_step = d_gaussian_sphere->points.size()/(double)max_points_num;
@@ -181,8 +180,8 @@ void GaussianSphereSLAM::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 
 		std::cout << "-> d_gaussian_sphere->points.size() = " << d_gaussian_sphere->points.size() << std::endl;
 	}
-	std::cout << "time for decimation[s] = " << ros::Time::now().toSec() - t_start_decimation << std::endl;
 
+	double t_start_clustering = ros::Time::now().toSec();
 	if(!first_callback_odom){
 		bool succeeded = false;
 		ClusterDGauss();
@@ -193,6 +192,8 @@ void GaussianSphereSLAM::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 			Publication();
 		}
 	}
+	std::cout << "time for clustering[s] = " << ros::Time::now().toSec() - t_start_clustering << std::endl;
+
 	Visualization();
 	
 	std::cout << "time for CallbackPC[s] = " << ros::Time::now().toSec() - t_start_callback_pc << std::endl;
