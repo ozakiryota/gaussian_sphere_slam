@@ -3,8 +3,9 @@
 	<param name="use_sim_time" value="true"/>
 
 	<!-- rosbag -->
-	<node pkg="rosbag" type="play" name="player" args="--clock /home/amsl/ozaki/bagfiles/mocap/0119_infant/2019-01-19-18-26-15.bag -s 60"/>
-	<!-- <node pkg="rosbag" type="play" name="player" args="&#45;&#45;clock /home/amsl/ozaki/bagfiles/mocap/0126_infant/no_lsd/2019&#45;01&#45;26&#45;18&#45;17&#45;43.bag &#45;s 60"/> -->
+	<!-- <node pkg="rosbag" type="play" name="player" args="&#45;&#45;clock /home/amsl/ozaki/bagfiles/mocap/0119_infant/2019&#45;01&#45;19&#45;18&#45;26&#45;15.bag &#45;s 60"/> -->
+	<!-- <node pkg="rosbag" type="play" name="player" args="&#45;&#45;clock /home/amsl/ozaki/bagfiles/infant/indoor_dkan/2019&#45;04&#45;04&#45;14&#45;27&#45;47.bag"/> -->
+	<node pkg="rosbag" type="play" name="player" args="--clock /home/amsl/ozaki/bagfiles/infant/indoor_dkan/2019-04-04-14-29-45.bag"/>
 
 	<!-- rviz -->
 	<node pkg="rviz" type="rviz" name="rviz_perspective" args="-d /home/amsl/.rviz/trajectories_perspective.rviz"/>
@@ -17,9 +18,9 @@
 	<node pkg="pose_estimation_walls" name="odom_republish_infant" type="odom_republish_infant"/>
 	<node pkg="pose_estimation_walls" name="imu_initial_alignment" type="imu_initial_alignment" output="screen"/>
 	<node pkg="gaussian_sphere_slam" name="ekf_gaussian_sphere_slam" type="ekf_gaussian_sphere_slam" output="screen"/>
-	<node pkg="gaussian_sphere_slam" name="gaussian_sphere_slam" type="gaussian_sphere_slam" output="screen">
-		<remap from="/odom" to="/tinypower/odom/republished"/>
-	</node>
+	<!-- <node pkg="gaussian_sphere_slam" name="gaussian_sphere_slam" type="gaussian_sphere_slam" output="screen"> -->
+	<!-- 	<remap from="/odom" to="/tinypower/odom/republished"/> -->
+	<!-- </node> -->
 	<node pkg="pose_estimation_walls" name="combine_linearvelocity_and_pose" type="combine_linearvelocity_and_pose">
 		<remap from="/odom" to="/tinypower/odom/republished"/>
 	</node>

@@ -186,7 +186,7 @@ void GaussianSphereSLAM::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 		succeeded = MatchWalls();
 
 		if(succeeded){
-			// Publication();
+			Publication();
 		}
 	}
 	Visualization();
