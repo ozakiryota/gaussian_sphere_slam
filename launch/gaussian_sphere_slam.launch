@@ -7,9 +7,8 @@
 	<!-- <node pkg="rosbag" type="play" name="player" args="&#45;&#45;clock /home/amsl/ozaki/bagfiles/mocap/0126_infant/no_lsd/2019&#45;01&#45;26&#45;18&#45;17&#45;43.bag &#45;s 60"/> -->
 
 	<!-- rviz -->
-	<!-- <node pkg="rviz" type="rviz" name="rviz_startpoint" args="&#45;d /home/amsl/.rviz/trajectories_startpoint.rviz"/> -->
-	<!-- <node pkg="rviz" type="rviz" name="rviz_skyview" args="&#45;d /home/amsl/.rviz/trajectories_skyview.rviz"/> -->
-	<!-- <node pkg="rviz" type="rviz" name="rviz_skyview" args="&#45;d /home/amsl/.rviz/vicon.rviz"/> -->
+	<node pkg="rviz" type="rviz" name="rviz_perspective" args="-d /home/amsl/.rviz/trajectories_perspective.rviz"/>
+	<node pkg="rviz" type="rviz" name="rviz_xy" args="-d /home/amsl/.rviz/trajectories_xy.rviz"/>
 
 	<!-- sensor driver -->
 	<include file="$(find velodyne_pointcloud)/launch/32e_points.launch"/>
@@ -30,7 +29,7 @@
 		<remap from="/odom" to="/tinypower/odom/republished"/>
 	</node>
 	<include file="$(find loam_velodyne)/launch/hector_loam_velodyne.launch"/>
-	<node pkg="pose_estimation_walls" name="odom_creater_for_loamvelodyne" type="odom_creater_for_loamvelodyne"/>
+	<node pkg="pose_estimation_walls" name="odom_creator_for_loamvelodyne" type="odom_creator_for_loamvelodyne"/>
 	<node pkg="pose_estimation_walls" name="odom_creater_for_lsdslam" type="odom_creator_for_lsdslam">
 		<remap from="/odom" to="/tinypower/odom/republished"/>
 	</node>
