@@ -1,0 +1,9 @@
+<launch>
+	<!-- global rosparam -->
+	<param name="use_sim_time" value="true"/>
+
+	<!-- proposed method -->
+	<node pkg="gaussian_sphere_slam" name="gaussian_sphere_slam" type="gaussian_sphere_slam" output="screen">
+		<remap from="/odom" to="/tinypower/odom/republished"/>
+	</node>
+</launch>
