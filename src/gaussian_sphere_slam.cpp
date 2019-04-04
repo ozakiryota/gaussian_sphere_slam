@@ -185,6 +185,7 @@ void GaussianSphereSLAM::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 	if(!first_callback_odom){
 		bool succeeded = false;
 		ClusterDGauss();
+		std::cout << "time for clustering[s] = " << ros::Time::now().toSec() - t_start_clustering << std::endl;
 		CreateRegisteredCentroidCloud();
 		succeeded = MatchWalls();
 
@@ -192,7 +193,6 @@ void GaussianSphereSLAM::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 			Publication();
 		}
 	}
-	std::cout << "time for clustering[s] = " << ros::Time::now().toSec() - t_start_clustering << std::endl;
 
 	Visualization();
 	
