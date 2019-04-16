@@ -188,6 +188,7 @@ void GaussianSphereSLAM::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 		CreateRegisteredCentroidCloud();
 		succeeded = MatchWalls();
 
+		succeeded = false;	//test
 		if(succeeded){
 			Publication();
 		}
