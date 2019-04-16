@@ -18,9 +18,6 @@
 	<node pkg="pose_estimation_walls" name="odom_republish_infant" type="odom_republish_infant"/>
 	<node pkg="pose_estimation_walls" name="imu_initial_alignment" type="imu_initial_alignment" output="screen"/>
 	<node pkg="gaussian_sphere_slam" name="ekf_gaussian_sphere_slam" type="ekf_gaussian_sphere_slam" output="screen"/>
-	<node pkg="gaussian_sphere_slam" name="gaussian_sphere_slam" type="gaussian_sphere_slam" output="screen">
-		<remap from="/odom" to="/tinypower/odom/republished"/>
-	</node>
 	<node pkg="pose_estimation_walls" name="combine_linearvelocity_and_pose" type="combine_linearvelocity_and_pose">
 		<remap from="/odom" to="/tinypower/odom/republished"/>
 	</node>
@@ -34,10 +31,4 @@
 	<node pkg="pose_estimation_walls" name="odom_creater_for_lsdslam" type="odom_creator_for_lsdslam">
 		<remap from="/odom" to="/tinypower/odom/republished"/>
 	</node>
-	<!-- <node pkg="pose_estimation_walls" name="odom_creater_for_imu" type="odom_creator_for_imu"> -->
-	<!-- 	<remap from="/odom" to="/tinypower/odom/republished"/> -->
-	<!-- </node> -->
-
-	<!-- graph -->
-	<!-- <node pkg="pose_estimation_walls" name="graph_rpy" type="graph_rpy.py"/> -->
 </launch>
