@@ -109,7 +109,7 @@ GaussianSphereSLAM::GaussianSphereSLAM()
 	viewer.setBackgroundColor(1, 1, 1);
 	viewer.addCoordinateSystem(0.8, "axis");
 	// viewer.setCameraPosition(0.0, 0.0, 50.0, 0.0, 0.0, 0.0);
-	viewer.setCameraPosition(-30.0, 0.0, 20.0, 0.0, 0.0, 1.0);
+	viewer.setCameraPosition(-30.0, 0.0, 10.0, 0.0, 0.0, 1.0);
 	rpy_cov_pub.data.resize(4);
 }
 
@@ -188,7 +188,7 @@ void GaussianSphereSLAM::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 		CreateRegisteredCentroidCloud();
 		succeeded = MatchWalls();
 
-		succeeded = false;	//test
+		// succeeded = false;	//test
 		if(succeeded){
 			Publication();
 		}
@@ -337,8 +337,8 @@ void GaussianSphereSLAM::ClusterDGauss(void)
 {
 	// std::cout << "POINT CLUSTER" << std::endl;
 
-	// const double cluster_distance = 0.3;
-	const double cluster_distance = 0.1;
+	// const double cluster_distance = 0.1;
+	const double cluster_distance = 0.2;
 	// const int min_num_cluster_belongings = 20;
 	const int min_num_cluster_belongings = 30;
 	pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
@@ -458,8 +458,8 @@ bool GaussianSphereSLAM::MatchWalls(void)
 		// const double ratio_matching_norm_dif = 0.2;
 		// const double min_matching_norm_dif = 0.5;	//[m]
 		const double threshold_matching_norm_dif = 0.5;	//[m]
-		const double threshold_matching_angle = 5.0;	//[deg]
-		const int threshold_count_match = 5;
+		const double threshold_matching_angle = 20.0;	//[deg]
+		const int threshold_count_match = 3;
 		const int k = 1;
 		kdtree.setInputCloud(d_gaussian_sphere_registered);
 		for(size_t i=0;i<d_gaussian_sphere_clustered->points.size();i++){
@@ -490,16 +490,24 @@ bool GaussianSphereSLAM::MatchWalls(void)
 					else{
 						double tmp_local_pose_error_rpy[3];
 						tf::Matrix3x3(tmp_q_local_pose_error).getRPY(tmp_local_pose_error_rpy[0], tmp_local_pose_error_rpy[1], tmp_local_pose_error_rpy[2]);
+						double xyz[3] = {d_gaussian_sphere_clustered->points[i].x, d_gaussian_sphere_clustered->points[i].y, d_gaussian_sphere_clustered->points[i].z};
 						for(int j=0;j<3;j++){
 							// local_pose_error_rpy_sincosatan[j][0] += sin(tmp_local_pose_error_rpy[j]);
 							// local_pose_error_rpy_sincosatan[j][1] += cos(tmp_local_pose_error_rpy[j]);
-							local_pose_error_rpy_sincosatan[j][0] += list_walls[pointIdxNKNSearch[0]].count_match*sin(tmp_local_pose_error_rpy[j]);
-							local_pose_error_rpy_sincosatan[j][1] += list_walls[pointIdxNKNSearch[0]].count_match*cos(tmp_local_pose_error_rpy[j]);
+							// local_pose_error_rpy_sincosatan[j][0] += list_walls[pointIdxNKNSearch[0]].count_match*sin(tmp_local_pose_error_rpy[j]);
+							// local_pose_error_rpy_sincosatan[j][1] += list_walls[pointIdxNKNSearch[0]].count_match*cos(tmp_local_pose_error_rpy[j]);
 							// double distance = sqrt(d_gaussian_sphere_clustered->points[i].x*d_gaussian_sphere_clustered->points[i].x + d_gaussian_sphere_clustered->points[i].y*d_gaussian_sphere_clustered->points[i].y + d_gaussian_sphere_clustered->points[i].z*d_gaussian_sphere_clustered->points[i].z);
 							// local_pose_error_rpy_sincosatan[j][0] += distance*sin(tmp_local_pose_error_rpy[j]);
 							// local_pose_error_rpy_sincosatan[j][1] += distance*cos(tmp_local_pose_error_rpy[j]);
 							// local_pose_error_rpy_sincosatan[j][0] += list_num_dgauss_cluster_belongings[i]*sin(tmp_local_pose_error_rpy[j]);
 							// local_pose_error_rpy_sincosatan[j][1] += list_num_dgauss_cluster_belongings[i]*cos(tmp_local_pose_error_rpy[j]);
+							double distance = 0.0;
+							for(int k=0;k<3;k++){
+								if(j!=k)	distance += xyz[k]*xyz[k];
+							}
+							distance = sqrt(distance);
+							local_pose_error_rpy_sincosatan[j][0] += distance*sin(tmp_local_pose_error_rpy[j]);
+							local_pose_error_rpy_sincosatan[j][1] += distance*cos(tmp_local_pose_error_rpy[j]);
 						}
 					}
 					succeeded_y = true;
@@ -559,8 +567,8 @@ bool GaussianSphereSLAM::MatchWalls(void)
 			rpy_cov_pub.data[3] = 1.0e+0;
 
 			/*only yaw*/
-			// rpy_cov_pub.data[0] = NAN;	//test
-			// rpy_cov_pub.data[1] = NAN;	//test
+			rpy_cov_pub.data[0] = NAN;	//test
+			rpy_cov_pub.data[1] = NAN;	//test
 		}
 		return succeeded_y;
 	}
@@ -661,13 +669,13 @@ void GaussianSphereSLAM::Visualization(void)
 	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 0.0, 0.0, "cloud");
 	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3, "cloud");
 	
-	viewer.addPointCloudNormals<pcl::PointNormal>(normals, 1, 0.5, "normals");
-	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 0.0, 1.0, "normals");
-	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 1, "normals");
-	
-	viewer.addPointCloudNormals<pcl::PointNormal>(normals_extracted, 1, 0.5, "normals_extracted");
-	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 1.0, 1.0, "normals_extracted");
-	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 3, "normals_extracted");
+	// viewer.addPointCloudNormals<pcl::PointNormal>(normals, 1, 0.5, "normals");
+	// viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 0.0, 1.0, "normals");
+	// viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 1, "normals");
+	//
+	// viewer.addPointCloudNormals<pcl::PointNormal>(normals_extracted, 1, 0.5, "normals_extracted");
+	// viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 1.0, 1.0, "normals_extracted");
+	// viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 3, "normals_extracted");
 
 	viewer.addPointCloud(d_gaussian_sphere, "d_gaussian_sphere");
 	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 1.0, 0.0, 0.8, "d_gaussian_sphere");
