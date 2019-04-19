@@ -280,7 +280,7 @@ void GaussianSphereSLAM::FittingWalls_::Compute(GaussianSphereSLAM &mainclass, s
 		if(std::isnan(plane_parameters[0]) || std::isnan(plane_parameters[1]) || std::isnan(plane_parameters[2]))	continue;
 		/*judge angle*/
 		const double threshold_angle = 30.0;	//[deg]
-		if(fabs(mainclass.AngleBetweenVectors(tmp_normal, mainclass.g_vector_from_ekf)-M_PI/2.0)>threshold_angle/180.0*M_PI)	continue;
+		// if(fabs(mainclass.AngleBetweenVectors(tmp_normal, mainclass.g_vector_from_ekf)-M_PI/2.0)>threshold_angle/180.0*M_PI)	continue;
 		/*judge error*/
 		const double threshold_fitting_error = 0.01;	//[m]
 		if(mainclass.ComputeSquareError(plane_parameters, indices)>threshold_fitting_error)	continue;
@@ -450,8 +450,9 @@ bool GaussianSphereSLAM::MatchWalls(void)
 	tf::Quaternion q_ave_local_pose_error;
 	bool compute_local_pose_error_in_quaternion = false;
 
-	pcl::PointCloud<pcl::PointXYZ>::Ptr pc_source {new pcl::PointCloud<pcl::PointXYZ>};
-	pcl::PointCloud<pcl::PointXYZ>::Ptr pc_target {new pcl::PointCloud<pcl::PointXYZ>};
+	std::vector<Eigen::Vector3d> list_vec_obs;
+	std::vector<Eigen::Vector3d> list_vec_pre;
+	Eigen::Vector3d vec_axis(0, 0, 0);
 
 	std::cout << "list_walls.size() = " << list_walls.size() << std::endl;
 	if(list_walls.empty()){
@@ -459,35 +460,45 @@ bool GaussianSphereSLAM::MatchWalls(void)
 		return succeeded_y;
 	}
 	else{
-		// const double ratio_matching_norm_dif = 0.2;
-		// const double min_matching_norm_dif = 0.5;	//[m]
 		const double threshold_matching_norm_dif = 0.5;	//[m]
 		const double threshold_matching_angle = 20.0;	//[deg]
 		const int threshold_count_match = 3;
 		const int k = 1;
 		kdtree.setInputCloud(d_gaussian_sphere_registered);
+
 		for(size_t i=0;i<d_gaussian_sphere_clustered->points.size();i++){
 			std::vector<int> pointIdxNKNSearch(k);
 			std::vector<float> pointNKNSquaredDistance(k);
 			if(kdtree.nearestKSearch(d_gaussian_sphere_clustered->points[i], k, pointIdxNKNSearch, pointNKNSquaredDistance)<=0)	std::cout << "kdtree error" << std::endl;
-			double norm_clusterd = sqrt(d_gaussian_sphere_clustered->points[i].x*d_gaussian_sphere_clustered->points[i].x + d_gaussian_sphere_clustered->points[i].y*d_gaussian_sphere_clustered->points[i].y + d_gaussian_sphere_clustered->points[i].z*d_gaussian_sphere_clustered->points[i].z);
-			double norm_registered = sqrt(d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].x*d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].x + d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].y*d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].y + d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].z*d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].z); 
-			double angle = acos((d_gaussian_sphere_clustered->points[i].x*d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].x + d_gaussian_sphere_clustered->points[i].y*d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].y + d_gaussian_sphere_clustered->points[i].z*d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].z)/norm_clusterd/norm_registered);
-			std::cout << "fabs(norm_clusterd-norm_registered) = |" << norm_clusterd << " - " << norm_registered << "| = " << fabs(norm_clusterd-norm_registered) << std::endl;
-			std::cout << "fabs(angle/M_PI*180.0) = " << fabs(angle/M_PI*180.0) << std::endl;
-			if(std::isnan(angle))	angle = 0.0;
+			Eigen::Vector3d tmp_vec_obs(
+				d_gaussian_sphere_clustered->points[i].x,
+				d_gaussian_sphere_clustered->points[i].y,
+				d_gaussian_sphere_clustered->points[i].z
+			);
+			Eigen::Vector3d tmp_vec_pre(
+				d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].x,
+				d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].y,
+				d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].z
+			);
 
-			if(fabs(norm_clusterd-norm_registered)<threshold_matching_norm_dif && fabs(angle/M_PI*180.0)<threshold_matching_angle && !list_walls[pointIdxNKNSearch[0]].found_match){
+			double diff_norm = fabs(tmp_vec_obs.norm() - tmp_vec_pre.norm());
+			double diff_angle = acos(tmp_vec_obs.dot(tmp_vec_pre)/(tmp_vec_obs.norm()*tmp_vec_pre.norm())); 
+
+			std::cout << "fabs(tmp_vec_obs.norm() - tmp_vec_pre.norm()) = |" << tmp_vec_obs.norm() << " - " << tmp_vec_pre.norm() << "| = " << fabs(tmp_vec_obs.norm() - tmp_vec_pre.norm()) << std::endl;
+			std::cout << "diff_angle[deg] = " << diff_angle/M_PI*180.0 << std::endl;
+			if(std::isnan(diff_angle))	diff_angle = 0.0;
+
+			if(diff_norm<threshold_matching_norm_dif && (diff_angle/M_PI*180.0)<threshold_matching_angle && !list_walls[pointIdxNKNSearch[0]].found_match){
 				list_walls[pointIdxNKNSearch[0]].found_match = true;
 				list_walls[pointIdxNKNSearch[0]].count_match++;
 				list_walls[pointIdxNKNSearch[0]].count_nomatch = 0;
-
-				// tf::Quaternion tmp_q_local_pose_error = GetRelativeRotation(d_gaussian_sphere_clustered->points[i], d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]]);
-				pc_source->points.push_back(d_gaussian_sphere_clustered->points[i]);
-				pc_target->points.push_back(d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]]);
-
-				if(pc_source->points.size()>1)	succeeded_y = true;
 				std::cout << "list_walls[" << pointIdxNKNSearch[0] << "].count_match = " << list_walls[pointIdxNKNSearch[0]].count_match << std::endl;
+
+				list_vec_obs.push_back(tmp_vec_obs);
+				list_vec_pre.push_back(tmp_vec_pre);
+				vec_axis += (tmp_vec_obs.normalized()).cross(tmp_vec_pre.normalized());
+
+				if(list_vec_obs.size()>2)	succeeded_y = true;
 
 				/*visualize matching*/
 				pcl::PointNormal tmp_matching_line;
@@ -524,28 +535,29 @@ bool GaussianSphereSLAM::MatchWalls(void)
 		}
 		/*estimate pose*/
 		if(succeeded_y){
-			pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
-			icp.setInputSource(pc_source);
-			icp.setInputTarget(pc_target);
-			icp.align(*pc_source);
-
-			Eigen::Matrix4f m_transformation = icp.getFinalTransformation();
-			Eigen::Matrix3f m_rot = m_transformation.block(0, 0, 3, 3);
-			Eigen::Quaternionf q_rot_eigen(m_rot);
-			q_rot_eigen.normalize();
-			tf::Quaternion q_rot(
-				(double)q_rot_eigen.x(),
-				(double)q_rot_eigen.y(),
-				(double)q_rot_eigen.z(),
-				(double)q_rot_eigen.w()
-			);
+			vec_axis.normalize();
+			double dot_weighted = 0.0;
+			double sum_weight = 0.0;
+			for(size_t i=0;i<list_vec_obs.size();i++){
+				double weight = (((list_vec_obs[i].normalized()).cross(list_vec_pre[i].normalized())).cross(vec_axis)).norm();
+				dot_weighted += weight*(list_vec_obs[i].normalized()).dot(list_vec_pre[i].normalized());
+				sum_weight += weight;
+			}
+			double theta = acos(dot_weighted/sum_weight);
+			tf::Quaternion q_correction(sin(theta/2.0)*vec_axis(0), sin(theta/2.0)*vec_axis(1), sin(theta/2.0)*vec_axis(2), cos(theta/2.0));
+			q_correction.normalize();
+			
+			std::cout << "vec_axis = " << std::endl << vec_axis << std::endl;
+			std::cout << "theta = " << theta << std::endl;
 
 			tf::Quaternion q_pose_odom_now;
 			quaternionMsgToTF(odom_now.pose.pose.orientation, q_pose_odom_now);
-			quaternionTFToMsg(q_pose_odom_now*q_rot, pose_pub.pose.orientation);
+			q_pose_odom_now = q_pose_odom_now*q_correction;
+			q_pose_odom_now.normalize();
+			quaternionTFToMsg(q_pose_odom_now, pose_pub.pose.orientation);
 			std::cout << "succeeded matching" << std::endl;
 
-			tf::Matrix3x3(q_pose_odom_now*q_rot).getRPY(rpy_cov_pub.data[0], rpy_cov_pub.data[1], rpy_cov_pub.data[2]);
+			tf::Matrix3x3(q_pose_odom_now).getRPY(rpy_cov_pub.data[0], rpy_cov_pub.data[1], rpy_cov_pub.data[2]);
 			rpy_cov_pub.data[3] = 1.0e+0;
 
 			/*only yaw*/
@@ -555,6 +567,121 @@ bool GaussianSphereSLAM::MatchWalls(void)
 		return succeeded_y;
 	}
 }
+
+// bool GaussianSphereSLAM::MatchWalls(void)
+// {
+// 	// std::cout << "MATCH WALLS" << std::endl;
+//
+// 	bool succeeded_y = false;
+// 	double local_pose_error_rpy_sincosatan[3][3] = {};
+// 	tf::Quaternion q_ave_local_pose_error;
+// 	bool compute_local_pose_error_in_quaternion = false;
+//
+// 	pcl::PointCloud<pcl::PointXYZ>::Ptr pc_source {new pcl::PointCloud<pcl::PointXYZ>};
+// 	pcl::PointCloud<pcl::PointXYZ>::Ptr pc_target {new pcl::PointCloud<pcl::PointXYZ>};
+//
+// 	std::cout << "list_walls.size() = " << list_walls.size() << std::endl;
+// 	if(list_walls.empty()){
+// 		for(size_t i=0;i<d_gaussian_sphere_clustered->points.size();i++) InputNewWallInfo(d_gaussian_sphere_clustered->points[i]);
+// 		return succeeded_y;
+// 	}
+// 	else{
+// 		const double threshold_matching_norm_dif = 0.5;	//[m]
+// 		const double threshold_matching_angle = 20.0;	//[deg]
+// 		const int threshold_count_match = 3;
+// 		const int k = 1;
+// 		kdtree.setInputCloud(d_gaussian_sphere_registered);
+// 		for(size_t i=0;i<d_gaussian_sphere_clustered->points.size();i++){
+// 			std::vector<int> pointIdxNKNSearch(k);
+// 			std::vector<float> pointNKNSquaredDistance(k);
+// 			if(kdtree.nearestKSearch(d_gaussian_sphere_clustered->points[i], k, pointIdxNKNSearch, pointNKNSquaredDistance)<=0)	std::cout << "kdtree error" << std::endl;
+// 			double norm_clusterd = sqrt(d_gaussian_sphere_clustered->points[i].x*d_gaussian_sphere_clustered->points[i].x + d_gaussian_sphere_clustered->points[i].y*d_gaussian_sphere_clustered->points[i].y + d_gaussian_sphere_clustered->points[i].z*d_gaussian_sphere_clustered->points[i].z);
+// 			double norm_registered = sqrt(d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].x*d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].x + d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].y*d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].y + d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].z*d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].z); 
+// 			double angle = acos((d_gaussian_sphere_clustered->points[i].x*d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].x + d_gaussian_sphere_clustered->points[i].y*d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].y + d_gaussian_sphere_clustered->points[i].z*d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].z)/norm_clusterd/norm_registered);
+// 			std::cout << "fabs(norm_clusterd-norm_registered) = |" << norm_clusterd << " - " << norm_registered << "| = " << fabs(norm_clusterd-norm_registered) << std::endl;
+// 			std::cout << "fabs(angle/M_PI*180.0) = " << fabs(angle/M_PI*180.0) << std::endl;
+// 			if(std::isnan(angle))	angle = 0.0;
+//
+// 			if(fabs(norm_clusterd-norm_registered)<threshold_matching_norm_dif && fabs(angle/M_PI*180.0)<threshold_matching_angle && !list_walls[pointIdxNKNSearch[0]].found_match){
+// 				list_walls[pointIdxNKNSearch[0]].found_match = true;
+// 				list_walls[pointIdxNKNSearch[0]].count_match++;
+// 				list_walls[pointIdxNKNSearch[0]].count_nomatch = 0;
+//
+// 				pc_source->points.push_back(d_gaussian_sphere_clustered->points[i]);
+// 				pc_target->points.push_back(d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]]);
+//
+// 				if(pc_source->points.size()>2)	succeeded_y = true;
+// 				std::cout << "list_walls[" << pointIdxNKNSearch[0] << "].count_match = " << list_walls[pointIdxNKNSearch[0]].count_match << std::endl;
+//
+// 				#<{(|visualize matching|)}>#
+// 				pcl::PointNormal tmp_matching_line;
+// 				tmp_matching_line.x = d_gaussian_sphere_clustered->points[i].x;
+// 				tmp_matching_line.y = d_gaussian_sphere_clustered->points[i].y;
+// 				tmp_matching_line.z = d_gaussian_sphere_clustered->points[i].z;
+// 				tmp_matching_line.normal_x = d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].x - d_gaussian_sphere_clustered->points[i].x;
+// 				tmp_matching_line.normal_y = d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].y - d_gaussian_sphere_clustered->points[i].y;
+// 				tmp_matching_line.normal_z = d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].z - d_gaussian_sphere_clustered->points[i].z;
+// 				matching_lines->points.push_back(tmp_matching_line);
+// 			}
+// 			else{
+// 				InputNewWallInfo(d_gaussian_sphere_clustered->points[i]);
+// 				#<{(|for visualization|)}>#
+// 				pcl::PointNormal tmp_normal;
+// 				tmp_normal.x = 0.0;
+// 				tmp_normal.y = 0.0;
+// 				tmp_normal.z = 0.0;
+// 				tmp_normal.normal_x = d_gaussian_sphere_clustered->points[i].x;
+// 				tmp_normal.normal_y = d_gaussian_sphere_clustered->points[i].y;
+// 				tmp_normal.normal_z = d_gaussian_sphere_clustered->points[i].z;
+// 				d_gaussian_sphere_newregistered_n->points.push_back(tmp_normal);
+// 			}
+// 		}
+// 		#<{(|arrange list|)}>#
+// 		const int threshold_count_nomatch = 5;
+// 		for(size_t i=0;i<list_walls.size();i++){
+// 			if(!list_walls[i].found_match)	list_walls[i].count_nomatch++;
+// 			if(list_walls[i].count_nomatch>threshold_count_nomatch){
+// 				list_walls.erase(list_walls.begin() + i);
+// 				i--;
+// 			}
+// 			else	list_walls[i].found_match = false;
+// 		}
+// 		#<{(|estimate pose|)}>#
+// 		if(succeeded_y){
+// 			pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
+// 			icp.setInputSource(pc_source);
+// 			icp.setInputTarget(pc_target);
+// 			icp.align(*pc_source);
+// 			std::cout << "has converged:" << icp.hasConverged() << " score: " <<
+// 			icp.getFitnessScore() << std::endl;
+// 			std::cout << icp.getFinalTransformation() << std::endl;
+//
+// 			Eigen::Matrix4f m_transformation = icp.getFinalTransformation();
+// 			Eigen::Matrix3f m_rot = m_transformation.block(0, 0, 3, 3);
+// 			Eigen::Quaternionf q_rot_eigen(m_rot);
+// 			q_rot_eigen.normalize();
+// 			tf::Quaternion q_rot(
+// 				(double)q_rot_eigen.x(),
+// 				(double)q_rot_eigen.y(),
+// 				(double)q_rot_eigen.z(),
+// 				(double)q_rot_eigen.w()
+// 			);
+//
+// 			tf::Quaternion q_pose_odom_now;
+// 			quaternionMsgToTF(odom_now.pose.pose.orientation, q_pose_odom_now);
+// 			quaternionTFToMsg(q_pose_odom_now*q_rot, pose_pub.pose.orientation);
+// 			std::cout << "succeeded matching" << std::endl;
+//
+// 			tf::Matrix3x3(q_pose_odom_now*q_rot).getRPY(rpy_cov_pub.data[0], rpy_cov_pub.data[1], rpy_cov_pub.data[2]);
+// 			rpy_cov_pub.data[3] = 1.0e+0;
+//
+// 			#<{(|only yaw|)}>#
+// 			// rpy_cov_pub.data[0] = NAN;	//test
+// 			// rpy_cov_pub.data[1] = NAN;	//test
+// 		}
+// 		return succeeded_y;
+// 	}
+// }
 
 void GaussianSphereSLAM::InputNewWallInfo(pcl::PointXYZ p)
 {
