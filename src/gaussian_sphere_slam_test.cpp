@@ -15,6 +15,7 @@
 #include <tf/tf.h>
 #include <thread>
 // #include <omp.h>
+#include <pcl/registration/icp.h>
 
 class GaussianSphereSLAM{
 	private:
@@ -449,6 +450,9 @@ bool GaussianSphereSLAM::MatchWalls(void)
 	tf::Quaternion q_ave_local_pose_error;
 	bool compute_local_pose_error_in_quaternion = false;
 
+	pcl::PointCloud<pcl::PointXYZ>::Ptr pc_source {new pcl::PointCloud<pcl::PointXYZ>};
+	pcl::PointCloud<pcl::PointXYZ>::Ptr pc_target {new pcl::PointCloud<pcl::PointXYZ>};
+
 	std::cout << "list_walls.size() = " << list_walls.size() << std::endl;
 	if(list_walls.empty()){
 		for(size_t i=0;i<d_gaussian_sphere_clustered->points.size();i++) InputNewWallInfo(d_gaussian_sphere_clustered->points[i]);
@@ -469,55 +473,22 @@ bool GaussianSphereSLAM::MatchWalls(void)
 			double norm_clusterd = sqrt(d_gaussian_sphere_clustered->points[i].x*d_gaussian_sphere_clustered->points[i].x + d_gaussian_sphere_clustered->points[i].y*d_gaussian_sphere_clustered->points[i].y + d_gaussian_sphere_clustered->points[i].z*d_gaussian_sphere_clustered->points[i].z);
 			double norm_registered = sqrt(d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].x*d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].x + d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].y*d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].y + d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].z*d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].z); 
 			double angle = acos((d_gaussian_sphere_clustered->points[i].x*d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].x + d_gaussian_sphere_clustered->points[i].y*d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].y + d_gaussian_sphere_clustered->points[i].z*d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]].z)/norm_clusterd/norm_registered);
-			// double threshold_matching_norm_dif = ratio_matching_norm_dif*norm_clusterd;
-			// if(threshold_matching_norm_dif<min_matching_norm_dif)	threshold_matching_norm_dif = min_matching_norm_dif;
 			std::cout << "fabs(norm_clusterd-norm_registered) = |" << norm_clusterd << " - " << norm_registered << "| = " << fabs(norm_clusterd-norm_registered) << std::endl;
 			std::cout << "fabs(angle/M_PI*180.0) = " << fabs(angle/M_PI*180.0) << std::endl;
 			if(std::isnan(angle))	angle = 0.0;
+
 			if(fabs(norm_clusterd-norm_registered)<threshold_matching_norm_dif && fabs(angle/M_PI*180.0)<threshold_matching_angle && !list_walls[pointIdxNKNSearch[0]].found_match){
 				list_walls[pointIdxNKNSearch[0]].found_match = true;
 				list_walls[pointIdxNKNSearch[0]].count_match++;
 				list_walls[pointIdxNKNSearch[0]].count_nomatch = 0;
 
-				list_walls[pointIdxNKNSearch[0]].fixed = true;	//test
-				if(list_walls[pointIdxNKNSearch[0]].fixed){
-					tf::Quaternion tmp_q_local_pose_error = GetRelativeRotation(d_gaussian_sphere_clustered->points[i], d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]]);
-					if(compute_local_pose_error_in_quaternion){
-						// tmp_q_local_pose_error = tf::Quaternion(list_walls[pointIdxNKNSearch[0]].count_match*tmp_q_local_pose_error.x(), list_walls[pointIdxNKNSearch[0]].count_match*tmp_q_local_pose_error.y(), list_walls[pointIdxNKNSearch[0]].count_match*tmp_q_local_pose_error.z(), list_walls[pointIdxNKNSearch[0]].count_match*tmp_q_local_pose_error.w());
-						if(!succeeded_y)	q_ave_local_pose_error = tmp_q_local_pose_error;
-						else	q_ave_local_pose_error += tmp_q_local_pose_error;
-					}
-					else{
-						double tmp_local_pose_error_rpy[3];
-						tf::Matrix3x3(tmp_q_local_pose_error).getRPY(tmp_local_pose_error_rpy[0], tmp_local_pose_error_rpy[1], tmp_local_pose_error_rpy[2]);
-						double xyz[3] = {d_gaussian_sphere_clustered->points[i].x, d_gaussian_sphere_clustered->points[i].y, d_gaussian_sphere_clustered->points[i].z};
-						for(int j=0;j<3;j++){
-							// local_pose_error_rpy_sincosatan[j][0] += sin(tmp_local_pose_error_rpy[j]);
-							// local_pose_error_rpy_sincosatan[j][1] += cos(tmp_local_pose_error_rpy[j]);
-							// local_pose_error_rpy_sincosatan[j][0] += list_walls[pointIdxNKNSearch[0]].count_match*sin(tmp_local_pose_error_rpy[j]);
-							// local_pose_error_rpy_sincosatan[j][1] += list_walls[pointIdxNKNSearch[0]].count_match*cos(tmp_local_pose_error_rpy[j]);
-							// double distance = sqrt(d_gaussian_sphere_clustered->points[i].x*d_gaussian_sphere_clustered->points[i].x + d_gaussian_sphere_clustered->points[i].y*d_gaussian_sphere_clustered->points[i].y + d_gaussian_sphere_clustered->points[i].z*d_gaussian_sphere_clustered->points[i].z);
-							// local_pose_error_rpy_sincosatan[j][0] += distance*sin(tmp_local_pose_error_rpy[j]);
-							// local_pose_error_rpy_sincosatan[j][1] += distance*cos(tmp_local_pose_error_rpy[j]);
-							// local_pose_error_rpy_sincosatan[j][0] += list_num_dgauss_cluster_belongings[i]*sin(tmp_local_pose_error_rpy[j]);
-							// local_pose_error_rpy_sincosatan[j][1] += list_num_dgauss_cluster_belongings[i]*cos(tmp_local_pose_error_rpy[j]);
-							double distance = 0.0;
-							for(int k=0;k<3;k++){
-								if(j!=k)	distance += xyz[k]*xyz[k];
-							}
-							distance = sqrt(distance);
-							local_pose_error_rpy_sincosatan[j][0] += distance*sin(tmp_local_pose_error_rpy[j]);
-							local_pose_error_rpy_sincosatan[j][1] += distance*cos(tmp_local_pose_error_rpy[j]);
-						}
-					}
-					succeeded_y = true;
-					std::cout << "list_walls[" << pointIdxNKNSearch[0] << "].count_match = " << list_walls[pointIdxNKNSearch[0]].count_match << std::endl;
-				}
-				else{
-					list_walls[pointIdxNKNSearch[0]].point = d_gaussian_sphere_clustered->points[i];
-					KalmanFilterForRegistration(list_walls[pointIdxNKNSearch[0]]);
-					if(list_walls[pointIdxNKNSearch[0]].count_match>threshold_count_match)	list_walls[pointIdxNKNSearch[0]].fixed = true;
-				}
+				// tf::Quaternion tmp_q_local_pose_error = GetRelativeRotation(d_gaussian_sphere_clustered->points[i], d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]]);
+				pc_source->points.push_back(d_gaussian_sphere_clustered->points[i]);
+				pc_target->points.push_back(d_gaussian_sphere_registered->points[pointIdxNKNSearch[0]]);
+
+				if(pc_source->points.size()>1)	succeeded_y = true;
+				std::cout << "list_walls[" << pointIdxNKNSearch[0] << "].count_match = " << list_walls[pointIdxNKNSearch[0]].count_match << std::endl;
+
 				/*visualize matching*/
 				pcl::PointNormal tmp_matching_line;
 				tmp_matching_line.x = d_gaussian_sphere_clustered->points[i].x;
@@ -553,22 +524,33 @@ bool GaussianSphereSLAM::MatchWalls(void)
 		}
 		/*estimate pose*/
 		if(succeeded_y){
-			if(compute_local_pose_error_in_quaternion)	q_ave_local_pose_error.normalize();
-			else{
-				for(int j=0;j<3;j++)	local_pose_error_rpy_sincosatan[j][2] = atan2(local_pose_error_rpy_sincosatan[j][0], local_pose_error_rpy_sincosatan[j][1]);
-				q_ave_local_pose_error = tf::createQuaternionFromRPY(local_pose_error_rpy_sincosatan[0][2], local_pose_error_rpy_sincosatan[1][2], local_pose_error_rpy_sincosatan[2][2]);
-			}
+			pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
+			icp.setInputSource(pc_source);
+			icp.setInputTarget(pc_target);
+			icp.align(*pc_source);
+
+			Eigen::Matrix4f m_transformation = icp.getFinalTransformation();
+			Eigen::Matrix3f m_rot = m_transformation.block(0, 0, 3, 3);
+			Eigen::Quaternionf q_rot_eigen(m_rot);
+			q_rot_eigen.normalize();
+			tf::Quaternion q_rot(
+				(double)q_rot_eigen.x(),
+				(double)q_rot_eigen.y(),
+				(double)q_rot_eigen.z(),
+				(double)q_rot_eigen.w()
+			);
+
 			tf::Quaternion q_pose_odom_now;
 			quaternionMsgToTF(odom_now.pose.pose.orientation, q_pose_odom_now);
-			quaternionTFToMsg(q_pose_odom_now*q_ave_local_pose_error, pose_pub.pose.orientation);
+			quaternionTFToMsg(q_pose_odom_now*q_rot, pose_pub.pose.orientation);
 			std::cout << "succeeded matching" << std::endl;
 
-			tf::Matrix3x3(q_pose_odom_now*q_ave_local_pose_error).getRPY(rpy_cov_pub.data[0], rpy_cov_pub.data[1], rpy_cov_pub.data[2]);
+			tf::Matrix3x3(q_pose_odom_now*q_rot).getRPY(rpy_cov_pub.data[0], rpy_cov_pub.data[1], rpy_cov_pub.data[2]);
 			rpy_cov_pub.data[3] = 1.0e+0;
 
 			/*only yaw*/
-			rpy_cov_pub.data[0] = NAN;	//test
-			rpy_cov_pub.data[1] = NAN;	//test
+			// rpy_cov_pub.data[0] = NAN;	//test
+			// rpy_cov_pub.data[1] = NAN;	//test
 		}
 		return succeeded_y;
 	}
