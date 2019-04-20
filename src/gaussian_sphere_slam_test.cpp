@@ -448,8 +448,10 @@ bool GaussianSphereSLAM::MatchWalls(void)
 
 	bool succeeded_y = false;
 
-	Eigen::Matrix3d H = Eigen::Matrix3d::Zero();
-	int num_pairs = 0;
+	std::vector<Eigen::Vector3d> list_vec_obs;
+	std::vector<Eigen::Vector3d> list_vec_pre;
+	Eigen::Vector3d vec_ave_obs;
+	Eigen::Vector3d vec_ave_pre;
 
 	std::cout << "list_walls.size() = " << list_walls.size() << std::endl;
 	if(list_walls.empty()){
@@ -491,10 +493,10 @@ bool GaussianSphereSLAM::MatchWalls(void)
 				list_walls[pointIdxNKNSearch[0]].count_nomatch = 0;
 				std::cout << "list_walls[" << pointIdxNKNSearch[0] << "].count_match = " << list_walls[pointIdxNKNSearch[0]].count_match << std::endl;
 
-				H += tmp_vec_obs*tmp_vec_pre.transpose();
-				num_pairs++;
-
-				if(num_pairs>2)	succeeded_y = true;
+				list_vec_obs.push_back(tmp_vec_obs);
+				list_vec_pre.push_back(tmp_vec_pre);
+				vec_ave_obs += tmp_vec_obs;
+				vec_ave_pre += tmp_vec_pre;
 
 				/*visualize matching*/
 				pcl::PointNormal tmp_matching_line;
@@ -530,13 +532,18 @@ bool GaussianSphereSLAM::MatchWalls(void)
 			else	list_walls[i].found_match = false;
 		}
 		/*estimate pose*/
-		if(succeeded_y){
+		if(list_vec_obs.size()>3){
+			vec_ave_obs /= (double)vec_ave_obs.size();
+			vec_ave_pre /= (double)vec_ave_pre.size();
+			Eigen::Matrix3d H = Eigen::Matrix3d::Zero();
+			for(size_t i=0;i<list_vec_obs.size();i++){
+				H += (list_vec_obs[i] - vec_ave_obs)*((list_vec_pre[i] - vec_ave_pre).transpose());
+			}
 			Eigen::JacobiSVD<Eigen::Matrix3d> svd(H, Eigen::ComputeFullU | Eigen::ComputeFullV);
 			Eigen::Matrix3d U = svd.matrixU();
 			Eigen::Matrix3d V = svd.matrixV();
 			Eigen::Matrix3d Rot = V*U.transpose();
 			Eigen::Quaterniond q_rot_eigen(Rot);
-
 			tf::Quaternion q_correction(
 				q_rot_eigen.x(),
 				q_rot_eigen.y(),
@@ -544,19 +551,26 @@ bool GaussianSphereSLAM::MatchWalls(void)
 				q_rot_eigen.w()
 			);
 
-			tf::Quaternion q_pose_odom_now;
-			quaternionMsgToTF(odom_now.pose.pose.orientation, q_pose_odom_now);
-			q_pose_odom_now = q_pose_odom_now*q_correction;
-			q_pose_odom_now.normalize();
-			quaternionTFToMsg(q_pose_odom_now, pose_pub.pose.orientation);
-			std::cout << "succeeded matching" << std::endl;
+			std::cout << "H = " << std::endl << H <<std::endl;
+			std::cout << "Rot = " << std::endl << Rot <<std::endl;
+			std::cout << "det = " << Rot.determinant() <<std::endl;
+			if(Rot.determinant()>0.99 && Rot.determinant()<1.01)	succeeded_y = true;
 
-			tf::Matrix3x3(q_pose_odom_now).getRPY(rpy_cov_pub.data[0], rpy_cov_pub.data[1], rpy_cov_pub.data[2]);
-			rpy_cov_pub.data[3] = 1.0e+0;
+			if(succeeded_y){
+				tf::Quaternion q_pose_odom_now;
+				quaternionMsgToTF(odom_now.pose.pose.orientation, q_pose_odom_now);
+				q_pose_odom_now = q_pose_odom_now*q_correction;
+				q_pose_odom_now.normalize();
+				quaternionTFToMsg(q_pose_odom_now, pose_pub.pose.orientation);
+				std::cout << "succeeded matching" << std::endl;
 
-			/*only yaw*/
-			// rpy_cov_pub.data[0] = NAN;	//test
-			// rpy_cov_pub.data[1] = NAN;	//test
+				tf::Matrix3x3(q_pose_odom_now).getRPY(rpy_cov_pub.data[0], rpy_cov_pub.data[1], rpy_cov_pub.data[2]);
+				rpy_cov_pub.data[3] = 1.0e+0;
+
+				/*only yaw*/
+				// rpy_cov_pub.data[0] = NAN;	//test
+				// rpy_cov_pub.data[1] = NAN;	//test
+			}
 		}
 		return succeeded_y;
 	}
