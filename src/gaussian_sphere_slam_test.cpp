@@ -16,6 +16,7 @@
 #include <thread>
 // #include <omp.h>
 #include <pcl/registration/icp.h>
+#include <Eigen/SVD>
 
 class GaussianSphereSLAM{
 	private:
@@ -446,13 +447,9 @@ bool GaussianSphereSLAM::MatchWalls(void)
 	// std::cout << "MATCH WALLS" << std::endl;
 
 	bool succeeded_y = false;
-	double local_pose_error_rpy_sincosatan[3][3] = {};
-	tf::Quaternion q_ave_local_pose_error;
-	bool compute_local_pose_error_in_quaternion = false;
 
-	std::vector<Eigen::Vector3d> list_vec_obs;
-	std::vector<Eigen::Vector3d> list_vec_pre;
-	Eigen::Vector3d vec_axis(0, 0, 0);
+	Eigen::Matrix3d H = Eigen::Matrix3d::Zero();
+	int num_pairs = 0;
 
 	std::cout << "list_walls.size() = " << list_walls.size() << std::endl;
 	if(list_walls.empty()){
@@ -494,11 +491,10 @@ bool GaussianSphereSLAM::MatchWalls(void)
 				list_walls[pointIdxNKNSearch[0]].count_nomatch = 0;
 				std::cout << "list_walls[" << pointIdxNKNSearch[0] << "].count_match = " << list_walls[pointIdxNKNSearch[0]].count_match << std::endl;
 
-				list_vec_obs.push_back(tmp_vec_obs);
-				list_vec_pre.push_back(tmp_vec_pre);
-				vec_axis += (tmp_vec_obs.normalized()).cross(tmp_vec_pre.normalized());
+				H += tmp_vec_obs*tmp_vec_pre.transpose();
+				num_pairs++;
 
-				if(list_vec_obs.size()>2)	succeeded_y = true;
+				if(num_pairs>2)	succeeded_y = true;
 
 				/*visualize matching*/
 				pcl::PointNormal tmp_matching_line;
@@ -535,20 +531,18 @@ bool GaussianSphereSLAM::MatchWalls(void)
 		}
 		/*estimate pose*/
 		if(succeeded_y){
-			vec_axis.normalize();
-			double dot_weighted = 0.0;
-			double sum_weight = 0.0;
-			for(size_t i=0;i<list_vec_obs.size();i++){
-				double weight = (((list_vec_obs[i].normalized()).cross(list_vec_pre[i].normalized())).cross(vec_axis)).norm();
-				dot_weighted += weight*(list_vec_obs[i].normalized()).dot(list_vec_pre[i].normalized());
-				sum_weight += weight;
-			}
-			double theta = acos(dot_weighted/sum_weight);
-			tf::Quaternion q_correction(sin(theta/2.0)*vec_axis(0), sin(theta/2.0)*vec_axis(1), sin(theta/2.0)*vec_axis(2), cos(theta/2.0));
-			q_correction.normalize();
-			
-			std::cout << "vec_axis = " << std::endl << vec_axis << std::endl;
-			std::cout << "theta = " << theta << std::endl;
+			Eigen::JacobiSVD<Eigen::Matrix3d> svd(H, Eigen::ComputeFullU | Eigen::ComputeFullV);
+			Eigen::Matrix3d U = svd.matrixU();
+			Eigen::Matrix3d V = svd.matrixV();
+			Eigen::Matrix3d Rot = V*U.transpose();
+			Eigen::Quaterniond q_rot_eigen(Rot);
+
+			tf::Quaternion q_correction(
+				q_rot_eigen.x(),
+				q_rot_eigen.y(),
+				q_rot_eigen.z(),
+				q_rot_eigen.w()
+			);
 
 			tf::Quaternion q_pose_odom_now;
 			quaternionMsgToTF(odom_now.pose.pose.orientation, q_pose_odom_now);
