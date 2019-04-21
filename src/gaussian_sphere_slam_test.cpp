@@ -73,6 +73,7 @@ class GaussianSphereSLAM{
 	public:
 		GaussianSphereSLAM();
 		void CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg);
+		// void CallbackOdom(const nav_msgs::OdometryConstPtr& msg);
 		void CallbackOdom(const nav_msgs::OdometryConstPtr& msg);
 		// void CallbackInipose(const geometry_msgs::QuaternionConstPtr& msg);
 		void ClearPoints(void);
@@ -122,6 +123,9 @@ void GaussianSphereSLAM::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 	double t_start_callback_pc = ros::Time::now().toSec();
 
 	pcl::fromROSMsg(*msg, *cloud);
+	Eigen::Quaternionf lidar_alignment(0.999975, -0.0034279, -0.00621307, 8.72991e-06);
+	lidar_alignment.normalize();
+	pcl::transformPointCloud(*cloud, *cloud, Eigen::Vector3f(0.0, 0.0, 0.0), lidar_alignment);	//test
 	time_pub = msg->header.stamp;
 	ClearPoints();
 	kdtree.setInputCloud(cloud);
@@ -340,7 +344,7 @@ void GaussianSphereSLAM::ClusterDGauss(void)
 	// std::cout << "POINT CLUSTER" << std::endl;
 
 	// const double cluster_distance = 0.1;
-	const double cluster_distance = 0.2;
+	const double cluster_distance = 0.1;
 	// const int min_num_cluster_belongings = 20;
 	const int min_num_cluster_belongings = 20;
 	pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
@@ -532,7 +536,7 @@ bool GaussianSphereSLAM::MatchWalls(void)
 			else	list_walls[i].found_match = false;
 		}
 		/*estimate pose*/
-		if(list_vec_obs.size()>2){
+		if(list_vec_obs.size()>3){
 			vec_ave_obs /= (double)vec_ave_obs.size();
 			vec_ave_pre /= (double)vec_ave_pre.size();
 			Eigen::Matrix3d H = Eigen::Matrix3d::Zero();
@@ -569,8 +573,8 @@ bool GaussianSphereSLAM::MatchWalls(void)
 				rpy_cov_pub.data[3] = 1.0e+0;
 
 				/*only yaw*/
-				// rpy_cov_pub.data[0] = NAN;	//test
-				// rpy_cov_pub.data[1] = NAN;	//test
+				rpy_cov_pub.data[0] = NAN;	//test
+				rpy_cov_pub.data[1] = NAN;	//test
 			}
 		}
 		return succeeded_y;
