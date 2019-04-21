@@ -342,7 +342,7 @@ void GaussianSphereSLAM::ClusterDGauss(void)
 	// const double cluster_distance = 0.1;
 	const double cluster_distance = 0.2;
 	// const int min_num_cluster_belongings = 20;
-	const int min_num_cluster_belongings = 30;
+	const int min_num_cluster_belongings = 20;
 	pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
 	tree->setInputCloud(d_gaussian_sphere);
 	std::vector<pcl::PointIndices> cluster_indices;
@@ -448,10 +448,10 @@ bool GaussianSphereSLAM::MatchWalls(void)
 
 	bool succeeded_y = false;
 
-	std::vector<Eigen::Vector3d> list_vec_obs;
-	std::vector<Eigen::Vector3d> list_vec_pre;
-	Eigen::Vector3d vec_ave_obs;
-	Eigen::Vector3d vec_ave_pre;
+	std::vector<Eigen::Vector3d> list_vec_obs;	//{p}
+	std::vector<Eigen::Vector3d> list_vec_pre;	//{p'}
+	Eigen::Vector3d vec_ave_obs = Eigen::Vector3d::Zero();	//p
+	Eigen::Vector3d vec_ave_pre;	//p'
 
 	std::cout << "list_walls.size() = " << list_walls.size() << std::endl;
 	if(list_walls.empty()){
@@ -459,8 +459,8 @@ bool GaussianSphereSLAM::MatchWalls(void)
 		return succeeded_y;
 	}
 	else{
-		const double threshold_matching_norm_dif = 0.5;	//[m]
-		const double threshold_matching_angle = 20.0;	//[deg]
+		const double threshold_matching_norm_dif = 0.3;	//[m]
+		const double threshold_matching_angle = 5.0;	//[deg]
 		const int threshold_count_match = 3;
 		const int k = 1;
 		kdtree.setInputCloud(d_gaussian_sphere_registered);
@@ -532,7 +532,7 @@ bool GaussianSphereSLAM::MatchWalls(void)
 			else	list_walls[i].found_match = false;
 		}
 		/*estimate pose*/
-		if(list_vec_obs.size()>3){
+		if(list_vec_obs.size()>2){
 			vec_ave_obs /= (double)vec_ave_obs.size();
 			vec_ave_pre /= (double)vec_ave_pre.size();
 			Eigen::Matrix3d H = Eigen::Matrix3d::Zero();
@@ -550,6 +550,7 @@ bool GaussianSphereSLAM::MatchWalls(void)
 				q_rot_eigen.z(),
 				q_rot_eigen.w()
 			);
+			q_correction.normalize();
 
 			std::cout << "H = " << std::endl << H <<std::endl;
 			std::cout << "Rot = " << std::endl << Rot <<std::endl;
@@ -559,7 +560,7 @@ bool GaussianSphereSLAM::MatchWalls(void)
 			if(succeeded_y){
 				tf::Quaternion q_pose_odom_now;
 				quaternionMsgToTF(odom_now.pose.pose.orientation, q_pose_odom_now);
-				q_pose_odom_now = q_pose_odom_now*q_correction;
+				q_pose_odom_now = q_pose_odom_now.normalized()*q_correction;
 				q_pose_odom_now.normalize();
 				quaternionTFToMsg(q_pose_odom_now, pose_pub.pose.orientation);
 				std::cout << "succeeded matching" << std::endl;
@@ -790,9 +791,9 @@ void GaussianSphereSLAM::Visualization(void)
 	// viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 0.0, 1.0, "normals");
 	// viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 1, "normals");
 	//
-	// viewer.addPointCloudNormals<pcl::PointNormal>(normals_extracted, 1, 0.5, "normals_extracted");
-	// viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 1.0, 1.0, "normals_extracted");
-	// viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 3, "normals_extracted");
+	viewer.addPointCloudNormals<pcl::PointNormal>(normals_extracted, 1, 0.5, "normals_extracted");
+	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 1.0, 1.0, "normals_extracted");
+	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 1, "normals_extracted");
 
 	viewer.addPointCloud(d_gaussian_sphere, "d_gaussian_sphere");
 	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 1.0, 0.0, 0.8, "d_gaussian_sphere");
