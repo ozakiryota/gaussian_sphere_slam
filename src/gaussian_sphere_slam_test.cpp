@@ -123,9 +123,9 @@ void GaussianSphereSLAM::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 	double t_start_callback_pc = ros::Time::now().toSec();
 
 	pcl::fromROSMsg(*msg, *cloud);
-	Eigen::Quaternionf lidar_alignment(0.999975, -0.0034279, -0.00621307, 8.72991e-06);
-	lidar_alignment.normalize();
-	pcl::transformPointCloud(*cloud, *cloud, Eigen::Vector3f(0.0, 0.0, 0.0), lidar_alignment);	//test
+	// Eigen::Quaternionf lidar_alignment(0.999975, -0.0034279, -0.00621307, 8.72991e-06);
+	// lidar_alignment.normalize();
+	// pcl::transformPointCloud(*cloud, *cloud, Eigen::Vector3f(0.0, 0.0, 0.0), lidar_alignment);	//test
 	time_pub = msg->header.stamp;
 	ClearPoints();
 	kdtree.setInputCloud(cloud);
@@ -278,14 +278,14 @@ void GaussianSphereSLAM::FittingWalls_::Compute(GaussianSphereSLAM &mainclass, s
 		normals_->points.push_back(tmp_normal);
 		/*judge num*/
 		// const size_t threshold_num_neighborpoints_dgauss = 5;
-		const size_t threshold_num_neighborpoints_dgauss = 20;
-		// const size_t threshold_num_neighborpoints_dgauss = 40;
+		// const size_t threshold_num_neighborpoints_dgauss = 20;
+		const size_t threshold_num_neighborpoints_dgauss = 10;
 		if(indices.size()<threshold_num_neighborpoints_dgauss)	continue;
 		/*delete nan*/
 		if(std::isnan(plane_parameters[0]) || std::isnan(plane_parameters[1]) || std::isnan(plane_parameters[2]))	continue;
 		/*judge angle*/
 		const double threshold_angle = 30.0;	//[deg]
-		// if(fabs(mainclass.AngleBetweenVectors(tmp_normal, mainclass.g_vector_from_ekf)-M_PI/2.0)>threshold_angle/180.0*M_PI)	continue;
+		if(fabs(mainclass.AngleBetweenVectors(tmp_normal, mainclass.g_vector_from_ekf)-M_PI/2.0)>threshold_angle/180.0*M_PI)	continue;
 		/*judge error*/
 		const double threshold_fitting_error = 0.01;	//[m]
 		if(mainclass.ComputeSquareError(plane_parameters, indices)>threshold_fitting_error)	continue;
@@ -295,6 +295,9 @@ void GaussianSphereSLAM::FittingWalls_::Compute(GaussianSphereSLAM &mainclass, s
 		tmp_point.x = -plane_parameters[3]*plane_parameters[0];
 		tmp_point.y = -plane_parameters[3]*plane_parameters[1];
 		tmp_point.z = -plane_parameters[3]*plane_parameters[2];
+		// tmp_point.x = -tmp_normal.normal_x;	//test
+		// tmp_point.y = -tmp_normal.normal_y;	//test
+		// tmp_point.z = -tmp_normal.normal_z;	//test
 		d_gaussian_sphere_->points.push_back(tmp_point);
 	}
 }
@@ -346,7 +349,7 @@ void GaussianSphereSLAM::ClusterDGauss(void)
 	// const double cluster_distance = 0.1;
 	const double cluster_distance = 0.1;
 	// const int min_num_cluster_belongings = 20;
-	const int min_num_cluster_belongings = 20;
+	const int min_num_cluster_belongings = 10;
 	pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
 	tree->setInputCloud(d_gaussian_sphere);
 	std::vector<pcl::PointIndices> cluster_indices;
@@ -456,6 +459,7 @@ bool GaussianSphereSLAM::MatchWalls(void)
 	std::vector<Eigen::Vector3d> list_vec_pre;	//{p'}
 	Eigen::Vector3d vec_ave_obs = Eigen::Vector3d::Zero();	//p
 	Eigen::Vector3d vec_ave_pre;	//p'
+	std::vector<double> list_weight;
 
 	std::cout << "list_walls.size() = " << list_walls.size() << std::endl;
 	if(list_walls.empty()){
@@ -499,8 +503,11 @@ bool GaussianSphereSLAM::MatchWalls(void)
 
 				list_vec_obs.push_back(tmp_vec_obs);
 				list_vec_pre.push_back(tmp_vec_pre);
-				vec_ave_obs += tmp_vec_obs;
-				vec_ave_pre += tmp_vec_pre;
+				// vec_ave_obs += tmp_vec_obs;
+				// vec_ave_pre += tmp_vec_pre;
+				vec_ave_obs += list_walls[pointIdxNKNSearch[0]].count_match*tmp_vec_obs;	//test
+				vec_ave_pre += list_walls[pointIdxNKNSearch[0]].count_match*tmp_vec_pre;	//test
+				list_weight.push_back(list_walls[pointIdxNKNSearch[0]].count_match);
 
 				/*visualize matching*/
 				pcl::PointNormal tmp_matching_line;
@@ -536,12 +543,17 @@ bool GaussianSphereSLAM::MatchWalls(void)
 			else	list_walls[i].found_match = false;
 		}
 		/*estimate pose*/
-		if(list_vec_obs.size()>3){
-			vec_ave_obs /= (double)vec_ave_obs.size();
-			vec_ave_pre /= (double)vec_ave_pre.size();
+		double sum_weight = 0.0;
+		for(double w : list_weight)	sum_weight += w;
+		if(list_vec_obs.size()>4){
+			// vec_ave_obs /= (double)vec_ave_obs.size();
+			// vec_ave_pre /= (double)vec_ave_pre.size();
+			vec_ave_obs /= sum_weight;	//test
+			vec_ave_pre /= sum_weight;	//test
 			Eigen::Matrix3d H = Eigen::Matrix3d::Zero();
 			for(size_t i=0;i<list_vec_obs.size();i++){
-				H += (list_vec_obs[i] - vec_ave_obs)*((list_vec_pre[i] - vec_ave_pre).transpose());
+				// H += (list_vec_obs[i] - vec_ave_obs)*((list_vec_pre[i] - vec_ave_pre).transpose());
+				H += list_weight[i]*((list_vec_obs[i] - vec_ave_obs)*((list_vec_pre[i] - vec_ave_pre).transpose()));	//test
 			}
 			Eigen::JacobiSVD<Eigen::Matrix3d> svd(H, Eigen::ComputeFullU | Eigen::ComputeFullV);
 			Eigen::Matrix3d U = svd.matrixU();
