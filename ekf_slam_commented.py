@@ -138,7 +138,7 @@ def calc_LM_Pos(x, z):
     return zp
 
 
-def get_LM_Pos_from_state(x, ind):	#ind”Ô–Ú‚Ìƒ‰ƒ“ƒhƒ}[ƒNî•ñix, yj‚ğAx‚©‚ç”²‚«o‚·
+def get_LM_Pos_from_state(x, ind):  #indç•ªç›®ã®ãƒ©ãƒ³ãƒ‰ãƒãƒ¼ã‚¯æƒ…å ±ï¼ˆx, yï¼‰ã‚’ã€xã‹ã‚‰æŠœãå‡ºã™
 
     lm = x[STATE_SIZE + LM_SIZE * ind: STATE_SIZE + LM_SIZE * (ind + 1), :]
 
@@ -167,9 +167,9 @@ def search_correspond_LM_ID(xAug, PAug, zi):
 
 
 def calc_innovation(lm, xEst, PEst, z, LMid):
-    delta = lm - xEst[0:2]	#ƒƒ{ƒbƒg‚©‚çLM‚Ü‚Å‚Ì‡™x, ‡™y
-    q = (delta.T @ delta)[0, 0]	#=‡™x^2 + ‡™y^2
-    zangle = math.atan2(delta[1, 0], delta[0, 0]) - xEst[2, 0]	#ƒƒ{ƒbƒgÀ•WŒn‚Å‚ÌLM‚ÌŠp“x
+    delta = lm - xEst[0:2]  #ãƒ­ãƒœãƒƒãƒˆã‹ã‚‰LMã¾ã§ã®âŠ¿x, âŠ¿y
+    q = (delta.T @ delta)[0, 0] #=âŠ¿x^2 + âŠ¿y^2
+    zangle = math.atan2(delta[1, 0], delta[0, 0]) - xEst[2, 0]  #ãƒ­ãƒœãƒƒãƒˆåº§æ¨™ç³»ã§ã®LMã®è§’åº¦
     zp = np.array([[math.sqrt(q), pi_2_pi(zangle)]])
     y = (z - zp).T
     y[1] = pi_2_pi(y[1])
