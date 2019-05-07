@@ -420,8 +420,8 @@ pcl::PointXYZ GaussianSphereSLAM::PointTransformation(pcl::PointXYZ p, nav_msgs:
 	Eigen::Vector3d vec_normal(p.x, p.y, p.z);
 	Eigen::Vector3d vec_vertical_local_move = (vec_local_move.dot(vec_normal)/vec_normal.dot(vec_normal))*vec_normal;
 	// std::cout << "vec_normal: " << std::endl << vec_normal << std::endl;
-	// std::cout << "vec_local_move: " << std::endl << vec_local_move << std::endl;
-	// std::cout << "vec_vertical_local_move: " << std::endl << vec_vertical_local_move << std::endl;
+	std::cout << "vec_local_move: " << std::endl << vec_local_move << std::endl;
+	std::cout << "vec_vertical_local_move: " << std::endl << vec_vertical_local_move << std::endl;
 	tf::Quaternion q_point_origin(
 		p.x - vec_vertical_local_move(0),
 		p.y - vec_vertical_local_move(1),

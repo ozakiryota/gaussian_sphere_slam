@@ -29,9 +29,9 @@ def ekf_slam(xEst, PEst, u, z):
 
     # Predict
     S = STATE_SIZE
-    xEst[0:S] = motion_model(xEst[0:S], u)
+    xEst[0:S] = motion_model(xEst[0:S], u)  #ロボットのx, y, θのみ予測
     G, Fx = jacob_motion(xEst[0:S], u)
-    PEst[0:S, 0:S] = G.T * PEst[0:S, 0:S] * G + Fx.T * Cx * Fx
+    PEst[0:S, 0:S] = G.T * PEst[0:S, 0:S] * G + Fx.T * Cx * Fx  #ロボットのx, y, θ分のみ
     initP = np.eye(2)
 
     # Update
@@ -39,7 +39,7 @@ def ekf_slam(xEst, PEst, u, z):
         minid = search_correspond_LM_ID(xEst, PEst, z[iz, 0:2])
 
         nLM = calc_n_LM(xEst)
-        if minid == nLM:
+        if minid == nLM:    #新しいLM判定
             print("New LM")
             # Extend state and covariance matrix
             xAug = np.vstack((xEst, calc_LM_Pos(xEst, z[iz, :])))
@@ -166,7 +166,7 @@ def search_correspond_LM_ID(xAug, PAug, zi):
     return minid
 
 
-def calc_innovation(lm, xEst, PEst, z, LMid):
+def calc_innovation(lm, xEst, PEst, z, LMid):   #Sを計算
     delta = lm - xEst[0:2]  #ロボットからLMまでの⊿x, ⊿y
     q = (delta.T @ delta)[0, 0] #=⊿x^2 + ⊿y^2
     zangle = math.atan2(delta[1, 0], delta[0, 0]) - xEst[2, 0]  #ロボット座標系でのLMの角度
