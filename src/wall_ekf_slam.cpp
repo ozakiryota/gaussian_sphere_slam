@@ -153,6 +153,8 @@ void WallSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 					cos(delta_r)*sin(delta_p)*cos(delta_y) + sin(delta_r)*sin(delta_y),	cos(delta_r)*sin(delta_p)*sin(delta_y) - sin(delta_r)*cos(delta_y),	cos(delta_r)*cos(delta_p);
 	for(int i=0;i<num_wall;i++)	F.block(size_robot_state + i*size_wall_state, 0, size_wall_state, 1) = Rot_xyz_inv*X.block(size_robot_state + i*size_wall_state, 0, size_wall_state, 1);
 
+	std::cout << "test" << std::endl;
+
 	/*jF*/
 	Eigen::MatrixXd jF(X.rows(), X.rows());
 	/*xyz*/
