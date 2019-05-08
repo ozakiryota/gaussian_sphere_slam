@@ -140,12 +140,12 @@ void WallSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 
 	/*F*/
 	Eigen::MatrixXd F(X.rows(), 1);
-	F.block(0, 0, size_robot_state, size_robot_state) <<	x,
-															y,
-															z,
-															r_ + (delta_r + sin(r_)*tan(p_)*delta_p + cos(r_)*tan(p_)*delta_y),
-															p_ + (cos(r_)*delta_p - sin(r_)*delta_y),
-															y_ + (sin(r_)/cos(p_)*delta_p + cos(r_)/cos(p_)*delta_y);
+	F.block(0, 0, size_robot_state, 1) <<	x,
+											y,
+											z,
+											r_ + (delta_r + sin(r_)*tan(p_)*delta_p + cos(r_)*tan(p_)*delta_y),
+											p_ + (cos(r_)*delta_p - sin(r_)*delta_y),
+											y_ + (sin(r_)/cos(p_)*delta_p + cos(r_)/cos(p_)*delta_y);
 
 	Eigen::Matrix3d Rot_xyz_inv;	//inverse rotation
 	Rot_xyz_inv <<	cos(delta_p)*cos(delta_y),	cos(delta_p)*sin(delta_y),	-sin(delta_p),
@@ -153,14 +153,14 @@ void WallSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 					cos(delta_r)*sin(delta_p)*cos(delta_y) + sin(delta_r)*sin(delta_y),	cos(delta_r)*sin(delta_p)*sin(delta_y) - sin(delta_r)*cos(delta_y),	cos(delta_r)*cos(delta_p);
 	for(int i=0;i<num_wall;i++)	F.block(size_robot_state + i*size_wall_state, 0, size_wall_state, 1) = Rot_xyz_inv*X.block(size_robot_state + i*size_wall_state, 0, size_wall_state, 1);
 
-	std::cout << "test" << std::endl;
-
+	std::cout << "test1" << std::endl;
 	/*jF*/
 	Eigen::MatrixXd jF(X.rows(), X.rows());
 	/*xyz*/
 	jF.block(0, 0, 3, 3) = Eigen::Matrix3d::Identity();
 	jF.block(0, 3, 3, 3) = Eigen::Matrix3d::Zero();
 	jF.block(0, size_robot_state, 3, num_wall*size_wall_state) = Eigen::MatrixXd::Zero(3, num_wall*size_wall_state);
+	std::cout << "test2" << std::endl;
 	/*rpy*/
 	jF.block(3, 0, 3, 3) = Eigen::Matrix3d::Zero();
 	jF(3, 3) = 1 + (cos(r_)*tan(p_)*delta_p - sin(r_)*tan(p_)*delta_y);
