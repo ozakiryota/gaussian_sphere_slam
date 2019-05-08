@@ -55,8 +55,9 @@ class WallSLAM{
 		void PredictionIMU(sensor_msgs::Imu imu, double dt);
 		void CallbackOdom(const nav_msgs::OdometryConstPtr& msg);
 		void PredictionOdom(nav_msgs::Odometry odom, double dt);
-		float PiToPi(double angle);
 		void Publication();
+		geometry_msgs::PoseStamped StateVectorToPoseStamped(void);
+		float PiToPi(double angle);
 };
 
 WallSLAM::WallSLAM()
@@ -64,10 +65,10 @@ WallSLAM::WallSLAM()
 	sub_inipose = nh.subscribe("/initial_pose", 1, &WallSLAM::CallbackInipose, this);
 	sub_bias = nh.subscribe("/imu_bias", 1, &WallSLAM::CallbackBias, this);
 	sub_imu = nh.subscribe("/imu/data", 1, &WallSLAM::CallbackIMU, this);
-	sub_odom = nh.subscribe("/odom", 1, &WallSLAM::CallbackOdom, this);
-	pub_pose = nh.advertise<geometry_msgs::PoseStamped>("/pose_wall_slam", 1);
+	sub_odom = nh.subscribe("/gyrodometry", 1, &WallSLAM::CallbackOdom, this);
+	pub_pose = nh.advertise<geometry_msgs::PoseStamped>("/wall_slam_pos_posee", 1);
 	q_pose = tf::Quaternion(0.0, 0.0, 0.0, 1.0);
-	X = Eigen::MatrixXd::Constant(num_state, 1, 0.0);
+	X = Eigen::MatrixXd::Constant(size_robot_state, 1, 0.0);
 	P = 1.0e-10*Eigen::MatrixXd::Identity(num_state, num_state);
 }
 
@@ -77,7 +78,7 @@ void WallSLAM::CallbackInipose(const geometry_msgs::QuaternionConstPtr& msg)
 		quaternionMsgToTF(*msg, q_pose);
 		q_pose.normalize();
 		q_pose_last_at_slamcallback = q_pose;
-		tf::Matrix3x3(q_pose).getRPY(X(0, 0), X(1, 0), X(2, 0));
+		tf::Matrix3x3(q_pose).getRPY(X(3, 0), X(4, 0), X(5, 0));
 		inipose_is_available = true;
 		std::cout << "inipose_is_available = " << inipose_is_available << std::endl;
 		std::cout << "initial pose = " << std::endl << X << std::endl;
@@ -94,6 +95,8 @@ void WallSLAM::CallbackBias(const sensor_msgs::ImuConstPtr& msg)
 
 void WallSLAM::CallbackIMU(const sensor_msgs::ImuConstPtr& msg)
 {
+	std::cout << "Callback IMU" << std::endl;
+
 	time_imu_now = ros::Time::now();
 	double dt;
 	try{
@@ -113,6 +116,7 @@ void WallSLAM::CallbackIMU(const sensor_msgs::ImuConstPtr& msg)
 
 void WallSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 {
+	std::cout << "PredictionIMU" << std::endl;
 	double x = X(0, 0);
 	double y = X(1, 0);
 	double z = X(2, 0);
@@ -200,6 +204,8 @@ void WallSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 
 void WallSLAM::CallbackOdom(const nav_msgs::OdometryConstPtr& msg)
 {
+	std::cout << "Callback Odom" << std::endl;
+
 	time_odom_now = ros::Time::now();
 	double dt;
 	try{
@@ -292,12 +298,27 @@ void WallSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 
 void WallSLAM::Publication(void)
 {
-	geometry_msgs::PoseStamped pose_out;
-	q_pose.normalize();
-	quaternionTFToMsg(q_pose, pose_out.pose.orientation);
-	pose_out.header.frame_id = "/odom";
-	pose_out.header.stamp = ros::Time::now();
-	pub_pose.publish(pose_out);
+	std::cout << "Publication" << std::endl;
+
+	geometry_msgs::PoseStamped pose_pub = StateVectorToPoseStamped();
+	pose_pub.header.frame_id = "/odom";
+	pose_pub.header.stamp = ros::Time::now();
+	pub_pose.publish(pose_pub);
+}
+
+geometry_msgs::PoseStamped WallSLAM::StateVectorToPoseStamped(void)
+{
+	geometry_msgs::PoseStamped pose;
+	pose.pose.position.x = X(0, 0);
+	pose.pose.position.y = X(1, 0);
+	pose.pose.position.z = X(2, 0);
+	tf::Quaternion q_orientation = tf::createQuaternionFromRPY(X(3, 0), X(4, 0), X(5, 0));
+	pose.pose.orientation.x = q_orientation.x();
+	pose.pose.orientation.y = q_orientation.y();
+	pose.pose.orientation.z = q_orientation.z();
+	pose.pose.orientation.w = q_orientation.w();
+
+	return pose;
 }
 
 float WallSLAM::PiToPi(double angle)
