@@ -280,6 +280,14 @@ void WallSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 		jF(size_robot_state + i*size_wall_state + 2, size_robot_state + i*size_wall_state + 2) = 1 - delta(0)*wall_xyz(0)/d2 + 2*delta(0)*wall_xyz(0)*wall_xyz(2)*wall_xyz(2)/(d2*d2);
 		jF.block(size_robot_state + i*size_wall_state, size_robot_state + (i+1)*size_wall_state, size_wall_state, i*size_wall_state) = Eigen::MatrixXd::Zero(size_wall_state, i*size_wall_state);
 	}
+
+	/*Q*/
+	const double sigma = 1.0e-1;
+	Eigen::MatrixXd Q = sigma*Eigen::MatrixXd::Identity(num_state, num_state);
+	
+	/*Update*/
+	X = F;
+	P = jF*P*jF.transpose() + Q;
 }
 
 void WallSLAM::Publication(void)
