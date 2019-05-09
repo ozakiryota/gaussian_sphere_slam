@@ -65,11 +65,11 @@ WallSLAM::WallSLAM()
 	sub_inipose = nh.subscribe("/initial_pose", 1, &WallSLAM::CallbackInipose, this);
 	sub_bias = nh.subscribe("/imu_bias", 1, &WallSLAM::CallbackBias, this);
 	sub_imu = nh.subscribe("/imu/data", 1, &WallSLAM::CallbackIMU, this);
-	sub_odom = nh.subscribe("/gyrodometry", 1, &WallSLAM::CallbackOdom, this);
+	sub_odom = nh.subscribe("/tinypower/odom", 1, &WallSLAM::CallbackOdom, this);
 	pub_pose = nh.advertise<geometry_msgs::PoseStamped>("/wall_slam_pos_posee", 1);
 	q_pose = tf::Quaternion(0.0, 0.0, 0.0, 1.0);
 	X = Eigen::MatrixXd::Constant(size_robot_state, 1, 0.0);
-	P = 1.0e-10*Eigen::MatrixXd::Identity(num_state, num_state);
+	P = 1.0e-10*Eigen::MatrixXd::Identity(size_robot_state, size_robot_state);
 }
 
 void WallSLAM::CallbackInipose(const geometry_msgs::QuaternionConstPtr& msg)
@@ -153,14 +153,12 @@ void WallSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 					cos(delta_r)*sin(delta_p)*cos(delta_y) + sin(delta_r)*sin(delta_y),	cos(delta_r)*sin(delta_p)*sin(delta_y) - sin(delta_r)*cos(delta_y),	cos(delta_r)*cos(delta_p);
 	for(int i=0;i<num_wall;i++)	F.block(size_robot_state + i*size_wall_state, 0, size_wall_state, 1) = Rot_xyz_inv*X.block(size_robot_state + i*size_wall_state, 0, size_wall_state, 1);
 
-	std::cout << "test1" << std::endl;
 	/*jF*/
 	Eigen::MatrixXd jF(X.rows(), X.rows());
 	/*xyz*/
 	jF.block(0, 0, 3, 3) = Eigen::Matrix3d::Identity();
 	jF.block(0, 3, 3, 3) = Eigen::Matrix3d::Zero();
 	jF.block(0, size_robot_state, 3, num_wall*size_wall_state) = Eigen::MatrixXd::Zero(3, num_wall*size_wall_state);
-	std::cout << "test2" << std::endl;
 	/*rpy*/
 	jF.block(3, 0, 3, 3) = Eigen::Matrix3d::Zero();
 	jF(3, 3) = 1 + (cos(r_)*tan(p_)*delta_p - sin(r_)*tan(p_)*delta_y);
@@ -183,25 +181,18 @@ void WallSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 	}
 	
 	const double sigma = 1.0e-1;
-	Eigen::MatrixXd Q = sigma*Eigen::MatrixXd::Identity(num_state, num_state);
+	Eigen::MatrixXd Q = sigma*Eigen::MatrixXd::Identity(X.rows(), X.rows());
 	// Eigen::MatrixXd Q(num_state, num_state);
 	// Q <<	1.0e-1,	0, 0,
 	//  		0,	1.0e-1,	0,
 	// 		0,	0,	5.0e+5;
 	
 	X = F;
-	for(int i=0;i<3;i++){
-		if(X(i, 0)>M_PI)	X(i, 0) -= 2.0*M_PI;
-		if(X(i, 0)<-M_PI)	X(i, 0) += 2.0*M_PI;
-	}
-	q_pose = tf::createQuaternionFromRPY(X(0, 0), X(1, 0), X(2, 0));
-
-	// tf::Quaternion q_relative_rotation = tf::createQuaternionFromRPY(delta_r, delta_p, delta_y);
-	// q_pose = q_pose*q_relative_rotation;
-	// q_pose.normalize();
-	// tf::Matrix3x3(q_pose).getRPY(X(0, 0), X(1, 0), X(2, 0));
-
 	P = jF*P*jF.transpose() + Q;
+
+	std::cout << "X =" << std::endl << X << std::endl;
+	std::cout << "P =" << std::endl << P << std::endl;
+	std::cout << "jF =" << std::endl << jF << std::endl;
 }
 
 void WallSLAM::CallbackOdom(const nav_msgs::OdometryConstPtr& msg)
@@ -227,6 +218,8 @@ void WallSLAM::CallbackOdom(const nav_msgs::OdometryConstPtr& msg)
 
 void WallSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 {
+	std::cout << "Prediction Odom" << std::endl;
+
 	double x = X(0, 0);
 	double y = X(1, 0);
 	double z = X(2, 0);
@@ -244,7 +237,7 @@ void WallSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 
 	/*F*/
 	Eigen::MatrixXd F(X.rows(), 1);
-	F.block(0, 0, 3, 1) = X.block(0, 0, 3, 1) - Rot_xyz*X.block(0, 0, 3, 1);
+	F.block(0, 0, 3, 1) = X.block(0, 0, 3, 1) + Rot_xyz*delta;
 	F.block(3, 0, 3, 1) = X.block(3, 0, 3, 1);
 	for(int i=0;i<num_wall;i++){
 		Eigen::Vector3d wall_xyz = X.block(size_robot_state + i*size_wall_state, 0, 3, 1);
@@ -291,11 +284,13 @@ void WallSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 
 	/*Q*/
 	const double sigma = 1.0e-1;
-	Eigen::MatrixXd Q = sigma*Eigen::MatrixXd::Identity(num_state, num_state);
+	Eigen::MatrixXd Q = sigma*Eigen::MatrixXd::Identity(X.rows(), X.rows());
 	
 	/*Update*/
 	X = F;
 	P = jF*P*jF.transpose() + Q;
+
+	std::cout << "delta =" << std::endl << delta << std::endl;
 }
 
 void WallSLAM::Publication(void)
