@@ -567,8 +567,8 @@ bool GaussianSphereSLAM::MatchWalls(void)
 			rpy_cov_pub.data[3] = 1.0e+0;
 
 			/*only yaw*/
-			rpy_cov_pub.data[0] = NAN;	//test
-			rpy_cov_pub.data[1] = NAN;	//test
+			/* rpy_cov_pub.data[0] = NAN;	//test */
+			/* rpy_cov_pub.data[1] = NAN;	//test */
 		}
 		return succeeded_y;
 	}
