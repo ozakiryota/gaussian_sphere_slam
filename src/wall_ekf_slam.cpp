@@ -160,38 +160,34 @@ void WallSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 
 	/*jF*/
 	Eigen::MatrixXd jF(X.rows(), X.rows());
-	/*xyz*/
+	/*jF-xyz*/
 	jF.block(0, 0, 3, 3) = Eigen::Matrix3d::Identity();
 	jF.block(0, 3, 3, 3) = Eigen::Matrix3d::Zero();
 	jF.block(0, size_robot_state, 3, num_wall*size_wall_state) = Eigen::MatrixXd::Zero(3, num_wall*size_wall_state);
-	/*rpy*/
+	/*jF-rpy*/
 	jF.block(3, 0, 3, 3) = Eigen::Matrix3d::Zero();
-	jF(3, 3) = 1 + (cos(r_)*tan(p_)*delta_p - sin(r_)*tan(p_)*delta_y);
-	jF(3, 4) = (sin(r_)/cos(p_)/cos(p_)*delta_p + cos(r_)/cos(p_)/cos(p_)*delta_y);
+	jF(3, 3) = 1 + cos(r_)*tan(p_)*delta_p - sin(r_)*tan(p_)*delta_y;
+	jF(3, 4) = sin(r_)/cos(p_)/cos(p_)*delta_p + cos(r_)/cos(p_)/cos(p_)*delta_y;
 	jF(3, 5) = 0;
-	jF(4, 3) = (-sin(r_)*delta_p - cos(r_)*delta_y);
+	jF(4, 3) = -sin(r_)*delta_p - cos(r_)*delta_y;
 	jF(4, 4) = 1;
 	jF(4, 5) = 0;
-	jF(5, 3) = (cos(r_)/cos(p_)*delta_p - sin(r_)/cos(p_)*delta_y);
-	jF(5, 4) = (sin(r_)*sin(p_)/cos(p_)/cos(p_)*delta_p + cos(r_)*sin(p_)/cos(p_)/cos(p_)*delta_y);
+	jF(5, 3) = cos(r_)/cos(p_)*delta_p - sin(r_)/cos(p_)*delta_y;
+	jF(5, 4) = sin(r_)*sin(p_)/cos(p_)/cos(p_)*delta_p + cos(r_)*sin(p_)/cos(p_)/cos(p_)*delta_y;
 	jF(5, 5) = 1;
 	jF.block(3, size_robot_state, 3, num_wall*size_wall_state) = Eigen::MatrixXd::Zero(3, num_wall*size_wall_state);
-	/*wall-xyz*/
+	/*jF-wall_xyz*/
 	jF.block(size_robot_state, 0, num_wall*size_wall_state, 3) = Eigen::MatrixXd::Zero(num_wall*size_wall_state, 3);
 	jF.block(size_robot_state, 3, num_wall*size_wall_state, 3) = Eigen::MatrixXd::Zero(num_wall*size_wall_state, 3);
-	for(int i=0;i<num_wall;i++){
-		jF.block(size_robot_state + i*size_wall_state, size_robot_state, size_wall_state, i*size_wall_state) = Eigen::MatrixXd::Zero(size_wall_state, i*size_wall_state);
-		jF.block(size_robot_state + i*size_wall_state, size_robot_state + i*size_wall_state, size_wall_state, size_wall_state) = Rot_xyz_inv;
-		jF.block(size_robot_state + i*size_wall_state, size_robot_state + (i+1)*size_wall_state, size_wall_state, i*size_wall_state) = Eigen::MatrixXd::Zero(size_wall_state, i*size_wall_state);
-	}
+	Eigen::MatrixXd jWall = Eigen::MatrixXd::Zero(num_wall*size_wall_state, num_wall*size_wall_state);
+	for(int i=0;i<num_wall;i++)	jWall.block(i*size_wall_state, i*size_wall_state, size_wall_state, size_wall_state) = Rot_xyz_inv;
+	jF.block(size_robot_state, size_robot_state, num_wall*size_wall_state, num_wall*size_wall_state) = jWall;
 	
+	/*Q*/
 	const double sigma = 1.0e-1;
 	Eigen::MatrixXd Q = sigma*Eigen::MatrixXd::Identity(X.rows(), X.rows());
-	// Eigen::MatrixXd Q(num_state, num_state);
-	// Q <<	1.0e-1,	0, 0,
-	//  		0,	1.0e-1,	0,
-	// 		0,	0,	5.0e+5;
 	
+	/*Update*/
 	X = F;
 	P = jF*P*jF.transpose() + Q;
 
@@ -304,7 +300,8 @@ void WallSLAM::Publication(void)
 
 	geometry_msgs::PoseStamped pose_pub = StateVectorToPoseStamped();
 	pose_pub.header.frame_id = "/odom";
-	pose_pub.header.stamp = ros::Time::now();
+	// pose_pub.header.stamp = ros::Time::now();
+	pose_pub.header.stamp = time_imu_now;
 	pub_pose.publish(pose_pub);
 }
 
