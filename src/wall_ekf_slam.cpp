@@ -69,7 +69,7 @@ WallEKFSLAM::WallEKFSLAM()
 	pub_pose = nh.advertise<geometry_msgs::PoseStamped>("/pose_wall_ekf_slam", 1);
 	q_pose = tf::Quaternion(0.0, 0.0, 0.0, 1.0);
 	X = Eigen::MatrixXd::Constant(size_robot_state, 1, 0.0);
-	P = 1.0e-10*Eigen::MatrixXd::Identity(size_robot_state, size_robot_state);
+	P = Eigen::MatrixXd::Identity(size_robot_state, size_robot_state);
 }
 
 void WallEKFSLAM::CallbackInipose(const geometry_msgs::QuaternionConstPtr& msg)
@@ -247,7 +247,7 @@ void WallEKFSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 
 	/*jF*/
 	Eigen::MatrixXd jF(X.rows(), X.rows());
-	/*xyz*/
+	/*jF-xyz*/
 	jF.block(0, 0, 3, 3) = Eigen::Matrix3d::Identity();
 	jF(0, 3) = Dxyz(1)*(cos(r_)*sin(p_)*cos(y_) + sin(r_)*sin(y_)) + Dxyz(2)*(-sin(r_)*sin(p_)*cos(y_) + cos(r_)*sin(y_));
 	jF(0, 4) = Dxyz(0)*(-sin(p_)*cos(y_)) + Dxyz(1)*(sin(r_)*cos(p_)*cos(y_)) + Dxyz(2)*(cos(r_)*cos(p_)*cos(y_));
@@ -259,11 +259,11 @@ void WallEKFSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 	jF(2, 4) = Dxyz(0)*(-cos(p_)) + Dxyz(1)*(-sin(r_)*sin(p_)) + Dxyz(2)*(-cos(r_)*sin(p_)) ;
 	jF(2, 5) = 0;
 	jF.block(0, size_robot_state, 3, num_wall*size_wall_state) = Eigen::MatrixXd::Zero(3, num_wall*size_wall_state);
-	/*rpy*/
+	/*jF-rpy*/
 	jF.block(3, 0, 3, 3) = Eigen::Matrix3d::Zero();
 	jF.block(3, 3, 3, 3) = Eigen::Matrix3d::Identity();
 	jF.block(3, size_robot_state, 3, num_wall*size_wall_state) = Eigen::MatrixXd::Zero(3, num_wall*size_wall_state);
-	/*wall-xyz*/
+	/*jF-wall_xyz*/
 	jF.block(size_robot_state, 0, num_wall*size_wall_state, 3) = Eigen::MatrixXd::Zero(num_wall*size_wall_state, 3);
 	jF.block(size_robot_state, 3, num_wall*size_wall_state, 3) = Eigen::MatrixXd::Zero(num_wall*size_wall_state, 3);
 	for(int i=0;i<num_wall;i++){
@@ -322,7 +322,8 @@ geometry_msgs::PoseStamped WallEKFSLAM::StateVectorToPoseStamped(void)
 
 float WallEKFSLAM::PiToPi(double angle)
 {
-	return fmod(angle + M_PI, 2*M_PI) - M_PI;
+	/* return fmod(angle + M_PI, 2*M_PI) - M_PI; */
+	return atan2(sin(angle), cos(angle)); 
 }
 
 int main(int argc, char** argv)
