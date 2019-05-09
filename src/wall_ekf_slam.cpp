@@ -12,7 +12,7 @@
 // #include <Eigen/Core>
 // #include <Eigen/LU>
 
-class WallSLAM{
+class WallEKFSLAM{
 	private:
 		ros::NodeHandle nh;
 		/*subscribe*/
@@ -48,7 +48,7 @@ class WallSLAM{
 		ros::Time time_odom_now;
 		ros::Time time_odom_last;
 	public:
-		WallSLAM();
+		WallEKFSLAM();
 		void CallbackInipose(const geometry_msgs::QuaternionConstPtr& msg);
 		void CallbackBias(const sensor_msgs::ImuConstPtr& msg);
 		void CallbackIMU(const sensor_msgs::ImuConstPtr& msg);
@@ -60,19 +60,19 @@ class WallSLAM{
 		float PiToPi(double angle);
 };
 
-WallSLAM::WallSLAM()
+WallEKFSLAM::WallEKFSLAM()
 {
-	sub_inipose = nh.subscribe("/initial_pose", 1, &WallSLAM::CallbackInipose, this);
-	sub_bias = nh.subscribe("/imu_bias", 1, &WallSLAM::CallbackBias, this);
-	sub_imu = nh.subscribe("/imu/data", 1, &WallSLAM::CallbackIMU, this);
-	sub_odom = nh.subscribe("/tinypower/odom", 1, &WallSLAM::CallbackOdom, this);
-	pub_pose = nh.advertise<geometry_msgs::PoseStamped>("/wall_slam_pos_posee", 1);
+	sub_inipose = nh.subscribe("/initial_pose", 1, &WallEKFSLAM::CallbackInipose, this);
+	sub_bias = nh.subscribe("/imu_bias", 1, &WallEKFSLAM::CallbackBias, this);
+	sub_imu = nh.subscribe("/imu/data", 1, &WallEKFSLAM::CallbackIMU, this);
+	sub_odom = nh.subscribe("/tinypower/odom", 1, &WallEKFSLAM::CallbackOdom, this);
+	pub_pose = nh.advertise<geometry_msgs::PoseStamped>("/pose_wall_ekf_slam", 1);
 	q_pose = tf::Quaternion(0.0, 0.0, 0.0, 1.0);
 	X = Eigen::MatrixXd::Constant(size_robot_state, 1, 0.0);
 	P = 1.0e-10*Eigen::MatrixXd::Identity(size_robot_state, size_robot_state);
 }
 
-void WallSLAM::CallbackInipose(const geometry_msgs::QuaternionConstPtr& msg)
+void WallEKFSLAM::CallbackInipose(const geometry_msgs::QuaternionConstPtr& msg)
 {
 	if(!inipose_is_available){
 		quaternionMsgToTF(*msg, q_pose);
@@ -85,7 +85,7 @@ void WallSLAM::CallbackInipose(const geometry_msgs::QuaternionConstPtr& msg)
 	}
 }
 
-void WallSLAM::CallbackBias(const sensor_msgs::ImuConstPtr& msg)
+void WallEKFSLAM::CallbackBias(const sensor_msgs::ImuConstPtr& msg)
 {
 	if(!bias_is_available){
 		bias = *msg;
@@ -93,7 +93,7 @@ void WallSLAM::CallbackBias(const sensor_msgs::ImuConstPtr& msg)
 	}
 }
 
-void WallSLAM::CallbackIMU(const sensor_msgs::ImuConstPtr& msg)
+void WallEKFSLAM::CallbackIMU(const sensor_msgs::ImuConstPtr& msg)
 {
 	std::cout << "Callback IMU" << std::endl;
 
@@ -114,7 +114,7 @@ void WallSLAM::CallbackIMU(const sensor_msgs::ImuConstPtr& msg)
 	first_callback_imu = false;
 }
 
-void WallSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
+void WallEKFSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 {
 	std::cout << "PredictionIMU" << std::endl;
 	double x = X(0, 0);
@@ -196,7 +196,7 @@ void WallSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 	std::cout << "jF =" << std::endl << jF << std::endl;
 }
 
-void WallSLAM::CallbackOdom(const nav_msgs::OdometryConstPtr& msg)
+void WallEKFSLAM::CallbackOdom(const nav_msgs::OdometryConstPtr& msg)
 {
 	std::cout << "Callback Odom" << std::endl;
 
@@ -217,7 +217,7 @@ void WallSLAM::CallbackOdom(const nav_msgs::OdometryConstPtr& msg)
 	first_callback_odom = false;
 }
 
-void WallSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
+void WallEKFSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 {
 	std::cout << "Prediction Odom" << std::endl;
 
@@ -234,7 +234,7 @@ void WallSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 	Eigen::Matrix3d Rot_xyz;	//normal rotation
 	Rot_xyz <<	cos(p_)*cos(y_),	sin(r_)*sin(p_)*cos(y_) - cos(r_)*sin(y_),	cos(r_)*sin(p_)*cos(y_) + sin(r_)*sin(y_),
 				cos(p_)*sin(y_),	sin(r_)*sin(p_)*sin(y_) + cos(r_)*cos(y_),	cos(r_)*sin(p_)*sin(y_) - sin(r_)*cos(y_),
-				-sin(p_),	sin(r_)*cos(p_),	cos(r_)*cos(p_);
+				-sin(p_),			sin(r_)*cos(p_),							cos(r_)*cos(p_);
 
 	/*F*/
 	Eigen::MatrixXd F(X.rows(), 1);
@@ -248,15 +248,15 @@ void WallSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 	/*jF*/
 	Eigen::MatrixXd jF(X.rows(), X.rows());
 	/*xyz*/
-	jF.block(0, 0, 3, 3) = Eigen::Matrix3d::Identity() - Rot_xyz;
-	jF(0, 3) = -( y*(cos(r_)*sin(p_)*cos(y_) + sin(r_)*sin(y_)) + z*(-sin(r_)*sin(p_)*cos(y_) + cos(r_)*sin(y_)) );
-	jF(0, 4) = -( x*(-sin(p_)*cos(y_)) + y*(sin(r_)*cos(p_)*cos(y_)) + z*(cos(r_)*cos(p_)*cos(y_)) );
-	jF(0, 5) = -( x*(-cos(p_)*sin(y_)) + y*(-sin(r_)*sin(p_)*sin(y_) - cos(r_)*cos(y_)) + z*(-cos(r_)*sin(p_)*sin(y_) + sin(r_)*cos(y_)) );
-	jF(1, 3) = -( y*(cos(r_)*sin(p_)*sin(y_) - sin(r_)*cos(y_)) + z*(-sin(r_)*sin(p_)*sin(y_) - cos(r_)*cos(y_)) );
-	jF(1, 4) = -( x*(-sin(p_)*sin(y_)) + y*(sin(r_)*cos(p_)*sin(y_)) + z*(cos(r_)*cos(p_)*sin(y_)) );
-	jF(1, 5) = -( x*(cos(p_)*cos(y_)) + y*(sin(r_)*sin(p_)*cos(y_) - cos(r_)*sin(y_)) + z*(cos(r_)*sin(p_)*cos(y_) + sin(r_)*sin(y_)) );
-	jF(2, 3) = -( y*(cos(r_)*cos(p_)) + z*(-sin(r_)*cos(p_)) );
-	jF(2, 4) = -( x*(-cos(p_)) + y*(-sin(r_)*sin(p_)) + z*(-cos(r_)*sin(p_)) );
+	jF.block(0, 0, 3, 3) = Eigen::Matrix3d::Identity();
+	jF(0, 3) = Dxyz(1)*(cos(r_)*sin(p_)*cos(y_) + sin(r_)*sin(y_)) + Dxyz(2)*(-sin(r_)*sin(p_)*cos(y_) + cos(r_)*sin(y_));
+	jF(0, 4) = Dxyz(0)*(-sin(p_)*cos(y_)) + Dxyz(1)*(sin(r_)*cos(p_)*cos(y_)) + Dxyz(2)*(cos(r_)*cos(p_)*cos(y_));
+	jF(0, 5) = Dxyz(0)*(-cos(p_)*sin(y_)) + Dxyz(1)*(-sin(r_)*sin(p_)*sin(y_) - cos(r_)*cos(y_)) + Dxyz(2)*(-cos(r_)*sin(p_)*sin(y_) + sin(r_)*cos(y_));
+	jF(1, 3) = Dxyz(1)*(cos(r_)*sin(p_)*sin(y_) - sin(r_)*cos(y_)) + Dxyz(2)*(-sin(r_)*sin(p_)*sin(y_) - cos(r_)*cos(y_));
+	jF(1, 4) = Dxyz(0)*(-sin(p_)*sin(y_)) + Dxyz(1)*(sin(r_)*cos(p_)*sin(y_)) + Dxyz(2)*(cos(r_)*cos(p_)*sin(y_));
+	jF(1, 5) = Dxyz(0)*(cos(p_)*cos(y_)) + Dxyz(1)*(sin(r_)*sin(p_)*cos(y_) - cos(r_)*sin(y_)) + Dxyz(2)*(cos(r_)*sin(p_)*cos(y_) + sin(r_)*sin(y_));
+	jF(2, 3) = Dxyz(1)*(cos(r_)*cos(p_)) + Dxyz(2)*(-sin(r_)*cos(p_)) ;
+	jF(2, 4) = Dxyz(0)*(-cos(p_)) + Dxyz(1)*(-sin(r_)*sin(p_)) + Dxyz(2)*(-cos(r_)*sin(p_)) ;
 	jF(2, 5) = 0;
 	jF.block(0, size_robot_state, 3, num_wall*size_wall_state) = Eigen::MatrixXd::Zero(3, num_wall*size_wall_state);
 	/*rpy*/
@@ -294,7 +294,7 @@ void WallSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 	std::cout << "Dxyz =" << std::endl << Dxyz << std::endl;
 }
 
-void WallSLAM::Publication(void)
+void WallEKFSLAM::Publication(void)
 {
 	std::cout << "Publication" << std::endl;
 
@@ -305,7 +305,7 @@ void WallSLAM::Publication(void)
 	pub_pose.publish(pose_pub);
 }
 
-geometry_msgs::PoseStamped WallSLAM::StateVectorToPoseStamped(void)
+geometry_msgs::PoseStamped WallEKFSLAM::StateVectorToPoseStamped(void)
 {
 	geometry_msgs::PoseStamped pose;
 	pose.pose.position.x = X(0, 0);
@@ -320,16 +320,16 @@ geometry_msgs::PoseStamped WallSLAM::StateVectorToPoseStamped(void)
 	return pose;
 }
 
-float WallSLAM::PiToPi(double angle)
+float WallEKFSLAM::PiToPi(double angle)
 {
 	return fmod(angle + M_PI, 2*M_PI) - M_PI;
 }
 
 int main(int argc, char** argv)
 {
-    ros::init(argc, argv, "wall_slam");
+    ros::init(argc, argv, "wall_ekf_slam");
 	std::cout << "E.K.F. POSE" << std::endl;
 	
-	WallSLAM wall_slam;
+	WallEKFSLAM wall_ekf_slam;
 	ros::spin();
 }
