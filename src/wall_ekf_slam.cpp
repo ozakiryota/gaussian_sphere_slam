@@ -7,8 +7,9 @@
 /* #include <std_msgs/Float64MultiArray.h> */
 #include <pcl_conversions/pcl_conversions.h>
 #include <tf/tf.h>
-#include <pcl/common/transforms.h>
-#include <pcl/kdtree/kdtree_flann.h>
+/* #include <pcl/common/transforms.h> */
+/* #include <pcl/kdtree/kdtree_flann.h> */
+#include <pcl/visualization/cloud_viewer.h>
 // #include <Eigen/Core>
 // #include <Eigen/LU>
 
@@ -24,25 +25,20 @@ class WallEKFSLAM{
 		/*publish*/
 		ros::Publisher pub_pose;
 		/*const*/
-		const int num_state = 3;
 		const int size_robot_state = 6;	//X, Y, Z, R, P, Y (Global)
 		const int size_wall_state = 3;	//x, y, z (Local)
 		/*objects*/
-		tf::Quaternion q_pose;
-		tf::Quaternion q_pose_last_at_slamcallback;
 		Eigen::VectorXd X;
 		Eigen::MatrixXd P;
 		sensor_msgs::Imu bias;
-		tf::Quaternion q_slam_now;
-		tf::Quaternion q_slam_last;
+		/*visualization*/
+		pcl::visualization::PCLVisualizer viewer{"D-Gaussian Spheres"};
+		pcl::PointCloud<pcl::PointXYZ>::Ptr d_gaussian_sphere_est {new pcl::PointCloud<pcl::PointXYZ>};
 		/*flags*/
 		bool inipose_is_available = false;
 		bool bias_is_available = false;
 		bool first_callback_imu = true;
 		bool first_callback_odom = true;
-		/*counter*/
-		int count_rpy_walls = 0;
-		int count_slam = 0;
 		/*time*/
 		ros::Time time_imu_now;
 		ros::Time time_imu_last;
@@ -58,10 +54,11 @@ class WallEKFSLAM{
 		void PredictionOdom(nav_msgs::Odometry odom, double dt);
 		void CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr &msg);
 		int SearchCorrespondWallID(Eigen::VectorXd Zi, Eigen::MatrixXd& jHi, Eigen::VectorXd& Yi, Eigen::MatrixXd& Si);
-		void ObservationDGaussianSphere(Eigen::VectorXd Z);
 		void Publication();
 		geometry_msgs::PoseStamped StateVectorToPoseStamped(void);
-		float PiToPi(double angle);
+		void Visualization(void);
+		pcl::PointCloud<pcl::PointXYZ> StateVectorToPC(void);
+		double PiToPi(double angle);
 };
 
 WallEKFSLAM::WallEKFSLAM()
@@ -71,21 +68,21 @@ WallEKFSLAM::WallEKFSLAM()
 	sub_imu = nh.subscribe("/imu/data", 1, &WallEKFSLAM::CallbackIMU, this);
 	sub_odom = nh.subscribe("/tinypower/odom", 1, &WallEKFSLAM::CallbackOdom, this);
 	pub_pose = nh.advertise<geometry_msgs::PoseStamped>("/pose_wall_ekf_slam", 1);
-	q_pose = tf::Quaternion(0.0, 0.0, 0.0, 1.0);
 	X = Eigen::VectorXd::Zero(size_robot_state);
 	P = Eigen::MatrixXd::Identity(size_robot_state, size_robot_state);
+	viewer.setBackgroundColor(1, 1, 1);
+	viewer.addCoordinateSystem(0.8, "axis");
 }
 
 void WallEKFSLAM::CallbackInipose(const geometry_msgs::QuaternionConstPtr& msg)
 {
 	if(!inipose_is_available){
+		tf::Quaternion q_pose;
 		quaternionMsgToTF(*msg, q_pose);
-		q_pose.normalize();
-		q_pose_last_at_slamcallback = q_pose;
 		tf::Matrix3x3(q_pose).getRPY(X(3), X(4), X(5));
 		inipose_is_available = true;
 		std::cout << "inipose_is_available = " << inipose_is_available << std::endl;
-		std::cout << "initial pose = " << std::endl << X << std::endl;
+		std::cout << "initial state vector = " << std::endl << X << std::endl;
 	}
 }
 
@@ -114,6 +111,7 @@ void WallEKFSLAM::CallbackIMU(const sensor_msgs::ImuConstPtr& msg)
 	else if(bias_is_available)	PredictionIMU(*msg, dt);
 	
 	Publication();
+	Visualization();
 
 	first_callback_imu = false;
 }
@@ -217,6 +215,7 @@ void WallEKFSLAM::CallbackOdom(const nav_msgs::OdometryConstPtr& msg)
 	else	PredictionOdom(*msg, dt);
 	
 	Publication();
+	Visualization();
 
 	first_callback_odom = false;
 }
@@ -328,6 +327,9 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 	Eigen::MatrixXd Ptmp = P;
 	P = Eigen::MatrixXd::Identity(X.size(), X.size());
 	P.block(0, 0, Ptmp.rows(), Ptmp.cols()) = Ptmp;
+
+	Publication();
+	Visualization();
 }
 
 int WallEKFSLAM::SearchCorrespondWallID(Eigen::VectorXd Zi, Eigen::MatrixXd& jHi, Eigen::VectorXd& Yi, Eigen::MatrixXd& Si)
@@ -361,10 +363,6 @@ int WallEKFSLAM::SearchCorrespondWallID(Eigen::VectorXd Zi, Eigen::MatrixXd& jHi
 	return correspond_id;
 }
 
-void WallEKFSLAM::ObservationDGaussianSphere(Eigen::VectorXd Z)
-{
-}
-
 void WallEKFSLAM::Publication(void)
 {
 	std::cout << "Publication" << std::endl;
@@ -391,7 +389,31 @@ geometry_msgs::PoseStamped WallEKFSLAM::StateVectorToPoseStamped(void)
 	return pose;
 }
 
-float WallEKFSLAM::PiToPi(double angle)
+void WallEKFSLAM::Visualization(void)
+{
+	viewer.removeAllPointClouds();
+	*d_gaussian_sphere_est = StateVectorToPC();
+
+	viewer.addPointCloud(d_gaussian_sphere_est, "d_gaussian_sphere_est");
+	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 0.0, 0.0, "d_gaussian_sphere_est");
+	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3, "d_gaussian_sphere_est");
+}
+
+pcl::PointCloud<pcl::PointXYZ> WallEKFSLAM::StateVectorToPC(void)
+{
+	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
+	int num_wall = (X.size() - size_robot_state)/size_wall_state;
+	for(int i=0;i<num_wall;i++){
+		pcl::PointXYZ tmp;
+		tmp.x = X(size_robot_state + i*size_wall_state);
+		tmp.y = X(size_robot_state + i*size_wall_state + 1);
+		tmp.z = X(size_robot_state + i*size_wall_state + 2);
+		cloud->points.push_back(tmp);
+	}
+	return *cloud;
+}
+
+double WallEKFSLAM::PiToPi(double angle)
 {
 	/* return fmod(angle + M_PI, 2*M_PI) - M_PI; */
 	return atan2(sin(angle), cos(angle)); 
