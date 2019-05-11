@@ -18,7 +18,7 @@
 	<node pkg="pose_estimation_walls" name="odom_republish_infant" type="odom_republish_infant"/>
 	<node pkg="pose_estimation_walls" name="imu_initial_alignment" type="imu_initial_alignment" output="screen"/>
 	<node pkg="gaussian_sphere_slam" name="ekf_gaussian_sphere_slam" type="ekf_gaussian_sphere_slam" output="screen"/>
-	<node pkg="gaussian_sphere_slam" name="gaussian_sphere_slam" type="gaussian_sphere_slam" output="screen">
+	<node pkg="gaussian_sphere_slam" name="gaussian_sphere_slam_svd" type="gaussian_sphere_slam_svd" output="screen">
 		<remap from="/odom" to="/tinypower/odom/republished"/>
 	</node>
 	<node pkg="pose_estimation_walls" name="combine_linearvelocity_and_pose" type="combine_linearvelocity_and_pose">

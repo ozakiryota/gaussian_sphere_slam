@@ -2,10 +2,10 @@
 #include <geometry_msgs/Quaternion.h>
 #include <sensor_msgs/Imu.h>
 #include <nav_msgs/Odometry.h>
+#include <sensor_msgs/PointCloud2.h>
 #include <geometry_msgs/PoseStamped.h>
-#include <std_msgs/Float64MultiArray.h>
-// #include <sensor_msgs/PointCloud2.h>
-// #include <pcl_conversions/pcl_conversions.h>
+/* #include <std_msgs/Float64MultiArray.h> */
+#include <pcl_conversions/pcl_conversions.h>
 #include <tf/tf.h>
 #include <pcl/common/transforms.h>
 #include <pcl/kdtree/kdtree_flann.h>
@@ -20,6 +20,7 @@ class WallEKFSLAM{
 		ros::Subscriber sub_bias;
 		ros::Subscriber sub_imu;
 		ros::Subscriber sub_odom;
+		ros::Subscriber sub_pc;
 		/*publish*/
 		ros::Publisher pub_pose;
 		/*const*/
@@ -29,7 +30,7 @@ class WallEKFSLAM{
 		/*objects*/
 		tf::Quaternion q_pose;
 		tf::Quaternion q_pose_last_at_slamcallback;
-		Eigen::MatrixXd X;
+		Eigen::VectorXd X;
 		Eigen::MatrixXd P;
 		sensor_msgs::Imu bias;
 		tf::Quaternion q_slam_now;
@@ -55,6 +56,9 @@ class WallEKFSLAM{
 		void PredictionIMU(sensor_msgs::Imu imu, double dt);
 		void CallbackOdom(const nav_msgs::OdometryConstPtr& msg);
 		void PredictionOdom(nav_msgs::Odometry odom, double dt);
+		void CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr &msg);
+		int SearchCorrespondWallID(Eigen::VectorXd Zi, Eigen::MatrixXd& jHi, Eigen::VectorXd& Yi, Eigen::MatrixXd& Si);
+		void ObservationDGaussianSphere(Eigen::VectorXd Z);
 		void Publication();
 		geometry_msgs::PoseStamped StateVectorToPoseStamped(void);
 		float PiToPi(double angle);
@@ -68,7 +72,7 @@ WallEKFSLAM::WallEKFSLAM()
 	sub_odom = nh.subscribe("/tinypower/odom", 1, &WallEKFSLAM::CallbackOdom, this);
 	pub_pose = nh.advertise<geometry_msgs::PoseStamped>("/pose_wall_ekf_slam", 1);
 	q_pose = tf::Quaternion(0.0, 0.0, 0.0, 1.0);
-	X = Eigen::MatrixXd::Constant(size_robot_state, 1, 0.0);
+	X = Eigen::VectorXd::Zero(size_robot_state);
 	P = Eigen::MatrixXd::Identity(size_robot_state, size_robot_state);
 }
 
@@ -78,7 +82,7 @@ void WallEKFSLAM::CallbackInipose(const geometry_msgs::QuaternionConstPtr& msg)
 		quaternionMsgToTF(*msg, q_pose);
 		q_pose.normalize();
 		q_pose_last_at_slamcallback = q_pose;
-		tf::Matrix3x3(q_pose).getRPY(X(3, 0), X(4, 0), X(5, 0));
+		tf::Matrix3x3(q_pose).getRPY(X(3), X(4), X(5));
 		inipose_is_available = true;
 		std::cout << "inipose_is_available = " << inipose_is_available << std::endl;
 		std::cout << "initial pose = " << std::endl << X << std::endl;
@@ -107,7 +111,7 @@ void WallEKFSLAM::CallbackIMU(const sensor_msgs::ImuConstPtr& msg)
 	}
 	time_imu_last = time_imu_now;
 	if(first_callback_imu)	dt = 0.0;
-	else if(inipose_is_available)	PredictionIMU(*msg, dt);
+	else if(bias_is_available)	PredictionIMU(*msg, dt);
 	
 	Publication();
 
@@ -117,12 +121,12 @@ void WallEKFSLAM::CallbackIMU(const sensor_msgs::ImuConstPtr& msg)
 void WallEKFSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 {
 	std::cout << "PredictionIMU" << std::endl;
-	double x = X(0, 0);
-	double y = X(1, 0);
-	double z = X(2, 0);
-	double r_ = X(3, 0);
-	double p_ = X(4, 0);
-	double y_ = X(5, 0);
+	double x = X(0);
+	double y = X(1);
+	double z = X(2);
+	double r_ = X(3);
+	double p_ = X(4);
+	double y_ = X(5);
 
 	double delta_r = imu.angular_velocity.x*dt;
 	double delta_p = imu.angular_velocity.y*dt;
@@ -134,7 +138,7 @@ void WallEKFSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 	}
 	Eigen::Vector3d Drpy = {delta_r, delta_p, delta_y};
 	
-	int num_wall = (X.rows() - size_robot_state)/size_wall_state;
+	int num_wall = (X.size() - size_robot_state)/size_wall_state;
 
 	Eigen::Matrix3d Rot_rpy;	//normal rotation
 	Rot_rpy <<	1,	sin(r_)*tan(p_),	cos(r_)*tan(p_),
@@ -147,19 +151,19 @@ void WallEKFSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 					cos(delta_r)*sin(delta_p)*cos(delta_y) + sin(delta_r)*sin(delta_y),	cos(delta_r)*sin(delta_p)*sin(delta_y) - sin(delta_r)*cos(delta_y),	cos(delta_r)*cos(delta_p);
 
 	/*F*/
-	Eigen::MatrixXd F(X.rows(), 1);
+	Eigen::VectorXd F(X.size());
 	/* F.block(0, 0, size_robot_state, 1) <<	x, */
 	/* 										y, */
 	/* 										z, */
 	/* 										r_ + (delta_r + sin(r_)*tan(p_)*delta_p + cos(r_)*tan(p_)*delta_y), */
 	/* 										p_ + (cos(r_)*delta_p - sin(r_)*delta_y), */
 	/* 										y_ + (sin(r_)/cos(p_)*delta_p + cos(r_)/cos(p_)*delta_y); */
-	F.block(0, 0, 3, 1) = X.block(0, 0, 3, 1);
-	F.block(3, 0, 3, 1) = X.block(3, 0, 3, 1) + Rot_rpy*Drpy;
-	for(int i=0;i<num_wall;i++)	F.block(size_robot_state + i*size_wall_state, 0, size_wall_state, 1) = Rot_xyz_inv*X.block(size_robot_state + i*size_wall_state, 0, size_wall_state, 1);
+	F.segment(0, 3) = X.segment(0, 3);
+	F.segment(3, 3) = X.segment(3, 3) + Rot_rpy*Drpy;
+	for(int i=0;i<num_wall;i++)	F.segment(size_robot_state + i*size_wall_state, size_wall_state) = Rot_xyz_inv*X.segment(size_robot_state + i*size_wall_state, size_wall_state);
 
 	/*jF*/
-	Eigen::MatrixXd jF(X.rows(), X.rows());
+	Eigen::MatrixXd jF(X.size(), X.size());
 	/*jF-xyz*/
 	jF.block(0, 0, 3, 3) = Eigen::Matrix3d::Identity();
 	jF.block(0, 3, 3, 3) = Eigen::Matrix3d::Zero();
@@ -185,7 +189,7 @@ void WallEKFSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 	
 	/*Q*/
 	const double sigma = 1.0e-1;
-	Eigen::MatrixXd Q = sigma*Eigen::MatrixXd::Identity(X.rows(), X.rows());
+	Eigen::MatrixXd Q = sigma*Eigen::MatrixXd::Identity(X.size(), X.size());
 	
 	/*Update*/
 	X = F;
@@ -210,7 +214,7 @@ void WallEKFSLAM::CallbackOdom(const nav_msgs::OdometryConstPtr& msg)
 	}
 	time_odom_last = time_odom_now;
 	if(first_callback_odom)	dt = 0.0;
-	else if(inipose_is_available)	PredictionOdom(*msg, dt);
+	else	PredictionOdom(*msg, dt);
 	
 	Publication();
 
@@ -221,15 +225,15 @@ void WallEKFSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 {
 	std::cout << "Prediction Odom" << std::endl;
 
-	double x = X(0, 0);
-	double y = X(1, 0);
-	double z = X(2, 0);
-	double r_ = X(3, 0);
-	double p_ = X(4, 0);
-	double y_ = X(5, 0);
+	double x = X(0);
+	double y = X(1);
+	double z = X(2);
+	double r_ = X(3);
+	double p_ = X(4);
+	double y_ = X(5);
 	Eigen::Vector3d Dxyz = {odom.twist.twist.linear.x*dt, 0, 0};
 
-	int num_wall = (X.rows() - size_robot_state)/size_wall_state;
+	int num_wall = (X.size() - size_robot_state)/size_wall_state;
 
 	Eigen::Matrix3d Rot_xyz;	//normal rotation
 	Rot_xyz <<	cos(p_)*cos(y_),	sin(r_)*sin(p_)*cos(y_) - cos(r_)*sin(y_),	cos(r_)*sin(p_)*cos(y_) + sin(r_)*sin(y_),
@@ -237,16 +241,16 @@ void WallEKFSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 				-sin(p_),			sin(r_)*cos(p_),							cos(r_)*cos(p_);
 
 	/*F*/
-	Eigen::MatrixXd F(X.rows(), 1);
-	F.block(0, 0, 3, 1) = X.block(0, 0, 3, 1) + Rot_xyz*Dxyz;
-	F.block(3, 0, 3, 1) = X.block(3, 0, 3, 1);
+	Eigen::VectorXd F(X.size());
+	F.segment(0, 3) = X.segment(0, 3) + Rot_xyz*Dxyz;
+	F.segment(3, 3) = X.segment(3, 3);
 	for(int i=0;i<num_wall;i++){
-		Eigen::Vector3d wall_xyz = X.block(size_robot_state + i*size_wall_state, 0, 3, 1);
-		F.block(size_robot_state + i*size_wall_state, 0, 3, 1) = wall_xyz - wall_xyz.dot(Dxyz)/wall_xyz.dot(wall_xyz)*wall_xyz;
+		Eigen::Vector3d wall_xyz = X.segment(size_robot_state + i*size_wall_state, 3);
+		F.segment(size_robot_state + i*size_wall_state, 3) = wall_xyz - wall_xyz.dot(Dxyz)/wall_xyz.dot(wall_xyz)*wall_xyz;
 	}
 
 	/*jF*/
-	Eigen::MatrixXd jF(X.rows(), X.rows());
+	Eigen::MatrixXd jF(X.size(), X.size());
 	/*jF-xyz*/
 	jF.block(0, 0, 3, 3) = Eigen::Matrix3d::Identity();
 	jF(0, 3) = Dxyz(1)*(cos(r_)*sin(p_)*cos(y_) + sin(r_)*sin(y_)) + Dxyz(2)*(-sin(r_)*sin(p_)*cos(y_) + cos(r_)*sin(y_));
@@ -267,7 +271,7 @@ void WallEKFSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 	jF.block(size_robot_state, 0, num_wall*size_wall_state, 3) = Eigen::MatrixXd::Zero(num_wall*size_wall_state, 3);
 	jF.block(size_robot_state, 3, num_wall*size_wall_state, 3) = Eigen::MatrixXd::Zero(num_wall*size_wall_state, 3);
 	for(int i=0;i<num_wall;i++){
-		Eigen::Vector3d wall_xyz = X.block(size_robot_state + i*size_wall_state, 0, 3, 1);
+		Eigen::Vector3d wall_xyz = X.segment(size_robot_state + i*size_wall_state, 3);
 		double d2 = wall_xyz(0)*wall_xyz(0) + wall_xyz(1)*wall_xyz(1) + wall_xyz(2)*wall_xyz(2);
 
 		jF.block(size_robot_state + i*size_wall_state, size_robot_state, size_wall_state, i*size_wall_state) = Eigen::MatrixXd::Zero(size_wall_state, i*size_wall_state);
@@ -285,13 +289,80 @@ void WallEKFSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 
 	/*Q*/
 	const double sigma = 1.0e-1;
-	Eigen::MatrixXd Q = sigma*Eigen::MatrixXd::Identity(X.rows(), X.rows());
+	Eigen::MatrixXd Q = sigma*Eigen::MatrixXd::Identity(X.size(), X.size());
 	
 	/*Update*/
 	X = F;
 	P = jF*P*jF.transpose() + Q;
 
 	std::cout << "Dxyz =" << std::endl << Dxyz << std::endl;
+}
+
+void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr &msg)
+{
+	pcl::PointCloud<pcl::PointXYZ>::Ptr d_gaussian_sphere {new pcl::PointCloud<pcl::PointXYZ>};
+	pcl::fromROSMsg(*msg, *d_gaussian_sphere);
+	Eigen::VectorXd Znew(0);
+	for(size_t i=0;i<d_gaussian_sphere->points.size();i++){
+		Eigen::VectorXd Zi(size_wall_state);
+		Zi <<	d_gaussian_sphere->points[i].x,
+				d_gaussian_sphere->points[i].y,
+				d_gaussian_sphere->points[i].z;
+		Eigen::MatrixXd jHi;
+		Eigen::VectorXd Yi;
+		Eigen::MatrixXd Si;
+		int correspond_id = SearchCorrespondWallID(Zi, jHi, Yi, Si);
+		if(correspond_id==-1){
+			Znew.conservativeResize(Znew.size() + size_wall_state);
+			Znew.segment(Znew.size() - size_wall_state, size_wall_state) = Zi;
+		}
+		else{
+			Eigen::MatrixXd Ki = P*jHi.transpose()*Si.inverse();
+			X = X + Ki*Yi;
+			Eigen::MatrixXd I = Eigen::MatrixXd::Identity(X.size(), X.size());
+			P = (I - Ki*jHi)*P;
+		}
+	}
+	X.conservativeResize(X.size() + Znew.size());
+	X.segment(X.size() - Znew.size(), Znew.size()) = Znew;
+	Eigen::MatrixXd Ptmp = P;
+	P = Eigen::MatrixXd::Identity(X.size(), X.size());
+	P.block(0, 0, Ptmp.rows(), Ptmp.cols()) = Ptmp;
+}
+
+int WallEKFSLAM::SearchCorrespondWallID(Eigen::VectorXd Zi, Eigen::MatrixXd& jHi, Eigen::VectorXd& Yi, Eigen::MatrixXd& Si)
+{
+	int num_wall = (X.size() - size_robot_state)/size_wall_state;
+
+	const double threshold_mahalanobis = 2.0;
+	double min_mahalanobis = threshold_mahalanobis;
+	int correspond_id = -1;
+	for(int i=0;i<num_wall;i++){
+		/*H, jH*/
+		Eigen::MatrixXd H = Eigen::MatrixXd::Zero(Zi.size(), X.size());
+		H.block(0, size_robot_state + i*size_wall_state, size_robot_state + size_wall_state, size_wall_state) = Eigen::MatrixXd::Identity(size_wall_state, size_wall_state);
+		Eigen::MatrixXd jH = H;
+		/*R*/
+		const double sigma = 1.0e-1;
+		Eigen::MatrixXd R = sigma*Eigen::MatrixXd::Identity(Zi.size(), Zi.size());
+		/*Y, S*/
+		Eigen::VectorXd Y = Zi - H*X;
+		Eigen::MatrixXd S = jH*P*jH.transpose() + R;
+
+		double mahalanobis_dist = Y.transpose()*S.inverse()*Y;
+		if(mahalanobis_dist<min_mahalanobis){
+			correspond_id = i;
+			jHi = jH;
+			Yi = Y;
+			Si = S;
+		}
+	}
+
+	return correspond_id;
+}
+
+void WallEKFSLAM::ObservationDGaussianSphere(Eigen::VectorXd Z)
+{
 }
 
 void WallEKFSLAM::Publication(void)
@@ -308,10 +379,10 @@ void WallEKFSLAM::Publication(void)
 geometry_msgs::PoseStamped WallEKFSLAM::StateVectorToPoseStamped(void)
 {
 	geometry_msgs::PoseStamped pose;
-	pose.pose.position.x = X(0, 0);
-	pose.pose.position.y = X(1, 0);
-	pose.pose.position.z = X(2, 0);
-	tf::Quaternion q_orientation = tf::createQuaternionFromRPY(X(3, 0), X(4, 0), X(5, 0));
+	pose.pose.position.x = X(0);
+	pose.pose.position.y = X(1);
+	pose.pose.position.z = X(2);
+	tf::Quaternion q_orientation = tf::createQuaternionFromRPY(X(3), X(4), X(5));
 	pose.pose.orientation.x = q_orientation.x();
 	pose.pose.orientation.y = q_orientation.y();
 	pose.pose.orientation.z = q_orientation.z();
@@ -333,4 +404,12 @@ int main(int argc, char** argv)
 	
 	WallEKFSLAM wall_ekf_slam;
 	ros::spin();
+
+	/* Eigen::MatrixXd A(2, 2); */
+	/* A << 1, 2, 3, 4; */
+	/* A = Eigen::MatrixXd::Identity(4, 4); */
+	/* A.conservativeResize(5, 5); */
+	/* Eigen::VectorXd A(0); */
+	/* std::cout << A << std::endl; */
+	/* std::cout << A.size() << std::endl; */
 }
