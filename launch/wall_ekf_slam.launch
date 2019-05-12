@@ -15,17 +15,11 @@
 
 	<!-- proposed method -->
 	<node pkg="pose_estimation_walls" name="odom_republish_infant" type="odom_republish_infant"/>
-	<node pkg="pose_estimation_walls" name="imu_initial_alignment" type="imu_initial_alignment" output="screen"/>
-	<node pkg="gaussian_sphere_slam" name="wall_ekf_slam" type="wall_ekf_slam" output="screen"/>
-	<node pkg="pose_estimation_walls" name="combine_linearvelocity_and_pose" type="combine_linearvelocity_and_pose">
-		<remap from="/odom" to="/tinypower/odom/republished"/>
+	<node pkg="gyrodometry" name="initial_alignment" type="initial_alignment" output="screen">
+		<param name="initial_orientation_is_0001" type="bool" value="true"/>
 	</node>
+	<node pkg="gaussian_sphere_slam" name="wall_ekf_slam" type="wall_ekf_slam" output="screen"/>
 
 	<!-- comparisons	 -->
-	<node pkg="pose_estimation_walls" name="gyrodometry" type="gyrodometry">
-		<remap from="/odom" to="/tinypower/odom/republished"/>
-	</node>
-
-	<!-- graph -->
-	<!-- <node pkg="pose_estimation_walls" name="graph_rpy" type="graph_rpy.py"/> -->
+	<node pkg="gyrodometry" name="gyrodometry3d" type="gyrodometry3d" output="screen"/>
 </launch>

@@ -7,9 +7,10 @@
 /* #include <std_msgs/Float64MultiArray.h> */
 #include <pcl_conversions/pcl_conversions.h>
 #include <tf/tf.h>
+#include <tf/transform_broadcaster.h>
 /* #include <pcl/common/transforms.h> */
 /* #include <pcl/kdtree/kdtree_flann.h> */
-#include <pcl/visualization/cloud_viewer.h>
+/* #include <pcl/visualization/cloud_viewer.h> */
 // #include <Eigen/Core>
 // #include <Eigen/LU>
 
@@ -21,9 +22,11 @@ class WallEKFSLAM{
 		ros::Subscriber sub_bias;
 		ros::Subscriber sub_imu;
 		ros::Subscriber sub_odom;
-		ros::Subscriber sub_pc;
+		ros::Subscriber sub_dgaussiansphere_obs;
 		/*publish*/
+		tf::TransformBroadcaster tf_broadcaster;
 		ros::Publisher pub_pose;
+		ros::Publisher pub_dgaussiansphere_est;
 		/*const*/
 		const int size_robot_state = 6;	//X, Y, Z, R, P, Y (Global)
 		const int size_wall_state = 3;	//x, y, z (Local)
@@ -31,9 +34,6 @@ class WallEKFSLAM{
 		Eigen::VectorXd X;
 		Eigen::MatrixXd P;
 		sensor_msgs::Imu bias;
-		/*visualization*/
-		pcl::visualization::PCLVisualizer viewer{"D-Gaussian Spheres"};
-		pcl::PointCloud<pcl::PointXYZ>::Ptr d_gaussian_sphere_est {new pcl::PointCloud<pcl::PointXYZ>};
 		/*flags*/
 		bool inipose_is_available = false;
 		bool bias_is_available = false;
@@ -56,22 +56,30 @@ class WallEKFSLAM{
 		int SearchCorrespondWallID(Eigen::VectorXd Zi, Eigen::MatrixXd& jHi, Eigen::VectorXd& Yi, Eigen::MatrixXd& Si);
 		void Publication();
 		geometry_msgs::PoseStamped StateVectorToPoseStamped(void);
-		void Visualization(void);
 		pcl::PointCloud<pcl::PointXYZ> StateVectorToPC(void);
 		double PiToPi(double angle);
 };
 
 WallEKFSLAM::WallEKFSLAM()
 {
-	sub_inipose = nh.subscribe("/initial_pose", 1, &WallEKFSLAM::CallbackInipose, this);
-	sub_bias = nh.subscribe("/imu_bias", 1, &WallEKFSLAM::CallbackBias, this);
+	sub_inipose = nh.subscribe("/initial_orientation", 1, &WallEKFSLAM::CallbackInipose, this);
+	sub_bias = nh.subscribe("/imu/bias", 1, &WallEKFSLAM::CallbackBias, this);
 	sub_imu = nh.subscribe("/imu/data", 1, &WallEKFSLAM::CallbackIMU, this);
 	sub_odom = nh.subscribe("/tinypower/odom", 1, &WallEKFSLAM::CallbackOdom, this);
+	sub_dgaussiansphere_obs = nh.subscribe("/d_gaussian_sphere_obs", 1, &WallEKFSLAM::CallbackDGaussianSphere, this);
 	pub_pose = nh.advertise<geometry_msgs::PoseStamped>("/pose_wall_ekf_slam", 1);
+	pub_dgaussiansphere_est = nh.advertise<sensor_msgs::PointCloud2>("/d_gaussian_sphere_est", 1);
 	X = Eigen::VectorXd::Zero(size_robot_state);
 	P = Eigen::MatrixXd::Identity(size_robot_state, size_robot_state);
-	viewer.setBackgroundColor(1, 1, 1);
-	viewer.addCoordinateSystem(0.8, "axis");
+
+	/*test*/
+	Eigen::VectorXd XYZ(9);
+	XYZ << 0, 2, 0, 2, 0, 0, 0, 0 ,2;
+	/* Eigen::VectorXd XYZ(3); */
+	/* XYZ << 0, 2, 0; */
+	X.conservativeResize(X.size() + XYZ.size());
+	X.segment(X.size() - XYZ.size(), XYZ.size()) = XYZ;
+	P = Eigen::MatrixXd::Identity(X.size(), X.size());
 }
 
 void WallEKFSLAM::CallbackInipose(const geometry_msgs::QuaternionConstPtr& msg)
@@ -111,7 +119,6 @@ void WallEKFSLAM::CallbackIMU(const sensor_msgs::ImuConstPtr& msg)
 	else if(bias_is_available)	PredictionIMU(*msg, dt);
 	
 	Publication();
-	Visualization();
 
 	first_callback_imu = false;
 }
@@ -215,7 +222,6 @@ void WallEKFSLAM::CallbackOdom(const nav_msgs::OdometryConstPtr& msg)
 	else	PredictionOdom(*msg, dt);
 	
 	Publication();
-	Visualization();
 
 	first_callback_odom = false;
 }
@@ -244,8 +250,8 @@ void WallEKFSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 	F.segment(0, 3) = X.segment(0, 3) + Rot_xyz*Dxyz;
 	F.segment(3, 3) = X.segment(3, 3);
 	for(int i=0;i<num_wall;i++){
-		Eigen::Vector3d wall_xyz = X.segment(size_robot_state + i*size_wall_state, 3);
-		F.segment(size_robot_state + i*size_wall_state, 3) = wall_xyz - wall_xyz.dot(Dxyz)/wall_xyz.dot(wall_xyz)*wall_xyz;
+		Eigen::Vector3d wall_xyz = X.segment(size_robot_state + i*size_wall_state, size_wall_state);
+		F.segment(size_robot_state + i*size_wall_state, size_wall_state) = wall_xyz - wall_xyz.dot(Dxyz)/wall_xyz.dot(wall_xyz)*wall_xyz;
 	}
 
 	/*jF*/
@@ -269,32 +275,42 @@ void WallEKFSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 	/*jF-wall_xyz*/
 	jF.block(size_robot_state, 0, num_wall*size_wall_state, 3) = Eigen::MatrixXd::Zero(num_wall*size_wall_state, 3);
 	jF.block(size_robot_state, 3, num_wall*size_wall_state, 3) = Eigen::MatrixXd::Zero(num_wall*size_wall_state, 3);
+	jF.block(size_robot_state, size_robot_state, num_wall*size_wall_state, num_wall*size_wall_state) = Eigen::MatrixXd::Zero(num_wall*size_wall_state, num_wall*size_wall_state);
 	for(int i=0;i<num_wall;i++){
-		Eigen::Vector3d wall_xyz = X.segment(size_robot_state + i*size_wall_state, 3);
+		Eigen::Vector3d wall_xyz = X.segment(size_robot_state + i*size_wall_state, size_wall_state);
 		double d2 = wall_xyz(0)*wall_xyz(0) + wall_xyz(1)*wall_xyz(1) + wall_xyz(2)*wall_xyz(2);
+		std::cout << "wall_xyz = " << std::endl << wall_xyz << std::endl;
 
-		jF.block(size_robot_state + i*size_wall_state, size_robot_state, size_wall_state, i*size_wall_state) = Eigen::MatrixXd::Zero(size_wall_state, i*size_wall_state);
+		// jF.block(size_robot_state + i*size_wall_state, size_robot_state, size_wall_state, i*size_wall_state) = Eigen::MatrixXd::Zero(size_wall_state, i*size_wall_state);
+		std::cout << "test1" << std::endl;
 		jF(size_robot_state + i*size_wall_state, size_robot_state + i*size_wall_state) = 1 - (2*Dxyz(0)*wall_xyz(0)/d2 - 2*Dxyz(0)*wall_xyz(0)*wall_xyz(0)*wall_xyz(0)/(d2*d2));
 		jF(size_robot_state + i*size_wall_state, size_robot_state + i*size_wall_state + 1) = 2*Dxyz(0)*wall_xyz(0)*wall_xyz(0)*wall_xyz(1)/(d2*d2);
 		jF(size_robot_state + i*size_wall_state, size_robot_state + i*size_wall_state + 2) = 2*Dxyz(0)*wall_xyz(0)*wall_xyz(0)*wall_xyz(2)/(d2*d2);
+		std::cout << "test2" << std::endl;
 		jF(size_robot_state + i*size_wall_state + 1, size_robot_state + i*size_wall_state) = -Dxyz(0)*wall_xyz(1)/d2 + 2*Dxyz(0)*wall_xyz(0)*wall_xyz(0)*wall_xyz(1)/(d2*d2);
 		jF(size_robot_state + i*size_wall_state + 1, size_robot_state + i*size_wall_state + 1) = 1 - Dxyz(0)*wall_xyz(0)/d2 + 2*Dxyz(0)*wall_xyz(0)*wall_xyz(1)*wall_xyz(1)/(d2*d2);
 		jF(size_robot_state + i*size_wall_state + 1, size_robot_state + i*size_wall_state + 2) = 2*Dxyz(0)*wall_xyz(0)*wall_xyz(1)*wall_xyz(2)/(d2*d2);
+		std::cout << "test3" << std::endl;
 		jF(size_robot_state + i*size_wall_state + 2, size_robot_state + i*size_wall_state) = -Dxyz(0)*wall_xyz(2)/d2 + 2*Dxyz(0)*wall_xyz(0)*wall_xyz(0)*wall_xyz(2)/(d2*d2);
 		jF(size_robot_state + i*size_wall_state + 2, size_robot_state + i*size_wall_state + 1) = 2*Dxyz(0)*wall_xyz(0)*wall_xyz(1)*wall_xyz(2)/(d2*d2);
 		jF(size_robot_state + i*size_wall_state + 2, size_robot_state + i*size_wall_state + 2) = 1 - Dxyz(0)*wall_xyz(0)/d2 + 2*Dxyz(0)*wall_xyz(0)*wall_xyz(2)*wall_xyz(2)/(d2*d2);
-		jF.block(size_robot_state + i*size_wall_state, size_robot_state + (i+1)*size_wall_state, size_wall_state, i*size_wall_state) = Eigen::MatrixXd::Zero(size_wall_state, i*size_wall_state);
+		std::cout << "test4" << std::endl;
+		/* jF.block(size_robot_state + i*size_wall_state, size_robot_state + (i+1)*size_wall_state, size_wall_state, i*size_wall_state) = Eigen::MatrixXd::Zero(size_wall_state, i*size_wall_state); */
+		std::cout << "test5" << std::endl;
 	}
 
 	/*Q*/
 	const double sigma = 1.0e-1;
 	Eigen::MatrixXd Q = sigma*Eigen::MatrixXd::Identity(X.size(), X.size());
+	std::cout << "X =" << std::endl << X << std::endl;
+	std::cout << "P =" << std::endl << P << std::endl;
+	std::cout << "jF =" << std::endl << jF << std::endl;
+	std::cout << "F =" << std::endl << F << std::endl;
 	
 	/*Update*/
 	X = F;
 	P = jF*P*jF.transpose() + Q;
-
-	std::cout << "Dxyz =" << std::endl << Dxyz << std::endl;
+	std::cout << "test" << std::endl;
 }
 
 void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr &msg)
@@ -329,7 +345,6 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 	P.block(0, 0, Ptmp.rows(), Ptmp.cols()) = Ptmp;
 
 	Publication();
-	Visualization();
 }
 
 int WallEKFSLAM::SearchCorrespondWallID(Eigen::VectorXd Zi, Eigen::MatrixXd& jHi, Eigen::VectorXd& Yi, Eigen::MatrixXd& Si)
@@ -367,11 +382,30 @@ void WallEKFSLAM::Publication(void)
 {
 	std::cout << "Publication" << std::endl;
 
+	/*pose*/
 	geometry_msgs::PoseStamped pose_pub = StateVectorToPoseStamped();
 	pose_pub.header.frame_id = "/odom";
 	// pose_pub.header.stamp = ros::Time::now();
 	pose_pub.header.stamp = time_imu_now;
 	pub_pose.publish(pose_pub);
+
+	/*tf broadcast*/
+    geometry_msgs::TransformStamped transform;
+	transform.header.stamp = pose_pub.header.stamp;
+	transform.header.frame_id = "/odom";
+	transform.child_frame_id = "/velodyne";
+	transform.transform.translation.x = pose_pub.pose.position.x;
+	transform.transform.translation.y = pose_pub.pose.position.y;
+	transform.transform.translation.z = pose_pub.pose.position.z;
+	transform.transform.rotation = pose_pub.pose.orientation;
+	tf_broadcaster.sendTransform(transform);
+
+	/*pc*/
+	sensor_msgs::PointCloud2 pc_pub;
+	pcl::toROSMsg(StateVectorToPC(), pc_pub);
+	pc_pub.header.frame_id = "/velodyne";
+	pc_pub.header.stamp = time_imu_now;
+	pub_dgaussiansphere_est.publish(pc_pub);
 }
 
 geometry_msgs::PoseStamped WallEKFSLAM::StateVectorToPoseStamped(void)
@@ -389,28 +423,18 @@ geometry_msgs::PoseStamped WallEKFSLAM::StateVectorToPoseStamped(void)
 	return pose;
 }
 
-void WallEKFSLAM::Visualization(void)
-{
-	viewer.removeAllPointClouds();
-	*d_gaussian_sphere_est = StateVectorToPC();
-
-	viewer.addPointCloud(d_gaussian_sphere_est, "d_gaussian_sphere_est");
-	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 0.0, 0.0, "d_gaussian_sphere_est");
-	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3, "d_gaussian_sphere_est");
-}
-
 pcl::PointCloud<pcl::PointXYZ> WallEKFSLAM::StateVectorToPC(void)
 {
-	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr pc (new pcl::PointCloud<pcl::PointXYZ>);
 	int num_wall = (X.size() - size_robot_state)/size_wall_state;
 	for(int i=0;i<num_wall;i++){
 		pcl::PointXYZ tmp;
 		tmp.x = X(size_robot_state + i*size_wall_state);
 		tmp.y = X(size_robot_state + i*size_wall_state + 1);
 		tmp.z = X(size_robot_state + i*size_wall_state + 2);
-		cloud->points.push_back(tmp);
+		pc->points.push_back(tmp);
 	}
-	return *cloud;
+	return *pc;
 }
 
 double WallEKFSLAM::PiToPi(double angle)
@@ -426,12 +450,4 @@ int main(int argc, char** argv)
 	
 	WallEKFSLAM wall_ekf_slam;
 	ros::spin();
-
-	/* Eigen::MatrixXd A(2, 2); */
-	/* A << 1, 2, 3, 4; */
-	/* A = Eigen::MatrixXd::Identity(4, 4); */
-	/* A.conservativeResize(5, 5); */
-	/* Eigen::VectorXd A(0); */
-	/* std::cout << A << std::endl; */
-	/* std::cout << A.size() << std::endl; */
 }

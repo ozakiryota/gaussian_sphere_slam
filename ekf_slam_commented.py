@@ -36,7 +36,7 @@ def ekf_slam(xEst, PEst, u, z):
 
     # Update
     for iz in range(len(z[:, 0])):  # for each observation
-        minid = search_correspond_LM_ID(xEst, PEst, z[iz, 0:2])
+        minid = search_correspond_LM_ID(xEst, PEst, z[iz, 0:2]) #iz番目の観測と最も似ているLMのインデックス番号
 
         nLM = calc_n_LM(xEst)
         if minid == nLM:    #新しいLM判定
@@ -47,7 +47,7 @@ def ekf_slam(xEst, PEst, u, z):
                               np.hstack((np.zeros((LM_SIZE, len(xEst))), initP))))
             xEst = xAug
             PEst = PAug
-        lm = get_LM_Pos_from_state(xEst, minid)
+        lm = get_LM_Pos_from_state(xEst, minid) #mind番目のLM情報（x, y）だけ抽出
         y, S, H = calc_innovation(lm, xEst, PEst, z[iz, 0:2], minid)
 
         K = (PEst @ H.T) @ np.linalg.inv(S)
@@ -138,7 +138,7 @@ def calc_LM_Pos(x, z):
     return zp
 
 
-def get_LM_Pos_from_state(x, ind):  #ind番目のランドマーク情報（x, y）を、xから抜き出す
+def get_LM_Pos_from_state(x, ind):  #ind番目のランドマーク情報（x, y）を、状態ベクトルxから抜き出す
 
     lm = x[STATE_SIZE + LM_SIZE * ind: STATE_SIZE + LM_SIZE * (ind + 1), :]
 
