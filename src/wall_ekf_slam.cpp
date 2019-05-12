@@ -281,22 +281,15 @@ void WallEKFSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 		double d2 = wall_xyz(0)*wall_xyz(0) + wall_xyz(1)*wall_xyz(1) + wall_xyz(2)*wall_xyz(2);
 		std::cout << "wall_xyz = " << std::endl << wall_xyz << std::endl;
 
-		// jF.block(size_robot_state + i*size_wall_state, size_robot_state, size_wall_state, i*size_wall_state) = Eigen::MatrixXd::Zero(size_wall_state, i*size_wall_state);
-		std::cout << "test1" << std::endl;
 		jF(size_robot_state + i*size_wall_state, size_robot_state + i*size_wall_state) = 1 - (2*Dxyz(0)*wall_xyz(0)/d2 - 2*Dxyz(0)*wall_xyz(0)*wall_xyz(0)*wall_xyz(0)/(d2*d2));
 		jF(size_robot_state + i*size_wall_state, size_robot_state + i*size_wall_state + 1) = 2*Dxyz(0)*wall_xyz(0)*wall_xyz(0)*wall_xyz(1)/(d2*d2);
 		jF(size_robot_state + i*size_wall_state, size_robot_state + i*size_wall_state + 2) = 2*Dxyz(0)*wall_xyz(0)*wall_xyz(0)*wall_xyz(2)/(d2*d2);
-		std::cout << "test2" << std::endl;
 		jF(size_robot_state + i*size_wall_state + 1, size_robot_state + i*size_wall_state) = -Dxyz(0)*wall_xyz(1)/d2 + 2*Dxyz(0)*wall_xyz(0)*wall_xyz(0)*wall_xyz(1)/(d2*d2);
 		jF(size_robot_state + i*size_wall_state + 1, size_robot_state + i*size_wall_state + 1) = 1 - Dxyz(0)*wall_xyz(0)/d2 + 2*Dxyz(0)*wall_xyz(0)*wall_xyz(1)*wall_xyz(1)/(d2*d2);
 		jF(size_robot_state + i*size_wall_state + 1, size_robot_state + i*size_wall_state + 2) = 2*Dxyz(0)*wall_xyz(0)*wall_xyz(1)*wall_xyz(2)/(d2*d2);
-		std::cout << "test3" << std::endl;
 		jF(size_robot_state + i*size_wall_state + 2, size_robot_state + i*size_wall_state) = -Dxyz(0)*wall_xyz(2)/d2 + 2*Dxyz(0)*wall_xyz(0)*wall_xyz(0)*wall_xyz(2)/(d2*d2);
 		jF(size_robot_state + i*size_wall_state + 2, size_robot_state + i*size_wall_state + 1) = 2*Dxyz(0)*wall_xyz(0)*wall_xyz(1)*wall_xyz(2)/(d2*d2);
 		jF(size_robot_state + i*size_wall_state + 2, size_robot_state + i*size_wall_state + 2) = 1 - Dxyz(0)*wall_xyz(0)/d2 + 2*Dxyz(0)*wall_xyz(0)*wall_xyz(2)*wall_xyz(2)/(d2*d2);
-		std::cout << "test4" << std::endl;
-		/* jF.block(size_robot_state + i*size_wall_state, size_robot_state + (i+1)*size_wall_state, size_wall_state, i*size_wall_state) = Eigen::MatrixXd::Zero(size_wall_state, i*size_wall_state); */
-		std::cout << "test5" << std::endl;
 	}
 
 	/*Q*/
