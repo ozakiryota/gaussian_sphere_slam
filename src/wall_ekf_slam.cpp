@@ -73,13 +73,11 @@ WallEKFSLAM::WallEKFSLAM()
 	P = Eigen::MatrixXd::Identity(size_robot_state, size_robot_state);
 
 	/*test*/
-	Eigen::VectorXd XYZ(9);
-	XYZ << 0, 2, 0, 2, 0, 0, 0, 0 ,2;
-	/* Eigen::VectorXd XYZ(3); */
-	/* XYZ << 0, 2, 0; */
-	X.conservativeResize(X.size() + XYZ.size());
-	X.segment(X.size() - XYZ.size(), XYZ.size()) = XYZ;
-	P = Eigen::MatrixXd::Identity(X.size(), X.size());
+	/* Eigen::VectorXd XYZ(9); */
+	/* XYZ << 0, 2, 0, 2, 0, 0, 0, 0 ,2; */
+	/* X.conservativeResize(X.size() + XYZ.size()); */
+	/* X.segment(X.size() - XYZ.size(), XYZ.size()) = XYZ; */
+	/* P = Eigen::MatrixXd::Identity(X.size(), X.size()); */
 }
 
 void WallEKFSLAM::CallbackInipose(const geometry_msgs::QuaternionConstPtr& msg)
