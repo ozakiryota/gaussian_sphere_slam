@@ -102,7 +102,7 @@ void WallEKFSLAM::CallbackBias(const sensor_msgs::ImuConstPtr& msg)
 
 void WallEKFSLAM::CallbackIMU(const sensor_msgs::ImuConstPtr& msg)
 {
-	std::cout << "Callback IMU" << std::endl;
+	/* std::cout << "Callback IMU" << std::endl; */
 
 	time_imu_now = ros::Time::now();
 	double dt;
@@ -123,7 +123,7 @@ void WallEKFSLAM::CallbackIMU(const sensor_msgs::ImuConstPtr& msg)
 
 void WallEKFSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 {
-	std::cout << "PredictionIMU" << std::endl;
+	/* std::cout << "PredictionIMU" << std::endl; */
 	double x = X(0);
 	double y = X(1);
 	double z = X(2);
@@ -198,14 +198,14 @@ void WallEKFSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 	X = F;
 	P = jF*P*jF.transpose() + Q;
 
-	std::cout << "X =" << std::endl << X << std::endl;
-	std::cout << "P =" << std::endl << P << std::endl;
-	std::cout << "jF =" << std::endl << jF << std::endl;
+	/* std::cout << "X =" << std::endl << X << std::endl; */
+	/* std::cout << "P =" << std::endl << P << std::endl; */
+	/* std::cout << "jF =" << std::endl << jF << std::endl; */
 }
 
 void WallEKFSLAM::CallbackOdom(const nav_msgs::OdometryConstPtr& msg)
 {
-	std::cout << "Callback Odom" << std::endl;
+	/* std::cout << "Callback Odom" << std::endl; */
 
 	time_odom_now = ros::Time::now();
 	double dt;
@@ -226,7 +226,7 @@ void WallEKFSLAM::CallbackOdom(const nav_msgs::OdometryConstPtr& msg)
 
 void WallEKFSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 {
-	std::cout << "Prediction Odom" << std::endl;
+	/* std::cout << "Prediction Odom" << std::endl; */
 
 	double x = X(0);
 	double y = X(1);
@@ -277,7 +277,6 @@ void WallEKFSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 	for(int i=0;i<num_wall;i++){
 		Eigen::Vector3d wall_xyz = X.segment(size_robot_state + i*size_wall_state, size_wall_state);
 		double d2 = wall_xyz(0)*wall_xyz(0) + wall_xyz(1)*wall_xyz(1) + wall_xyz(2)*wall_xyz(2);
-		std::cout << "wall_xyz = " << std::endl << wall_xyz << std::endl;
 
 		jF(size_robot_state + i*size_wall_state, size_robot_state + i*size_wall_state) = 1 - (2*Dxyz(0)*wall_xyz(0)/d2 - 2*Dxyz(0)*wall_xyz(0)*wall_xyz(0)*wall_xyz(0)/(d2*d2));
 		jF(size_robot_state + i*size_wall_state, size_robot_state + i*size_wall_state + 1) = 2*Dxyz(0)*wall_xyz(0)*wall_xyz(0)*wall_xyz(1)/(d2*d2);
@@ -293,21 +292,24 @@ void WallEKFSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 	/*Q*/
 	const double sigma = 1.0e-1;
 	Eigen::MatrixXd Q = sigma*Eigen::MatrixXd::Identity(X.size(), X.size());
-	std::cout << "X =" << std::endl << X << std::endl;
-	std::cout << "P =" << std::endl << P << std::endl;
-	std::cout << "jF =" << std::endl << jF << std::endl;
-	std::cout << "F =" << std::endl << F << std::endl;
+	
+	/* std::cout << "X =" << std::endl << X << std::endl; */
+	/* std::cout << "P =" << std::endl << P << std::endl; */
+	/* std::cout << "jF =" << std::endl << jF << std::endl; */
+	/* std::cout << "F =" << std::endl << F << std::endl; */
 	
 	/*Update*/
 	X = F;
 	P = jF*P*jF.transpose() + Q;
-	std::cout << "test" << std::endl;
 }
 
 void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr &msg)
 {
+	std::cout << "Callback D-Gaussian Sphere" << std::endl;
+	
 	pcl::PointCloud<pcl::PointXYZ>::Ptr d_gaussian_sphere {new pcl::PointCloud<pcl::PointXYZ>};
 	pcl::fromROSMsg(*msg, *d_gaussian_sphere);
+	std::cout << "d_gaussian_sphere->points.size() = " << d_gaussian_sphere->points.size() << std::endl;
 	Eigen::VectorXd Znew(0);
 	for(size_t i=0;i<d_gaussian_sphere->points.size();i++){
 		Eigen::VectorXd Zi(size_wall_state);
@@ -327,6 +329,9 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 			X = X + Ki*Yi;
 			Eigen::MatrixXd I = Eigen::MatrixXd::Identity(X.size(), X.size());
 			P = (I - Ki*jHi)*P;
+
+			std::cout << "Yi =" << std::endl << Yi << std::endl;
+			std::cout << "Ki*Yi =" << std::endl << Ki*Yi << std::endl;
 		}
 	}
 	X.conservativeResize(X.size() + Znew.size());
@@ -348,7 +353,7 @@ int WallEKFSLAM::SearchCorrespondWallID(Eigen::VectorXd Zi, Eigen::MatrixXd& jHi
 	for(int i=0;i<num_wall;i++){
 		/*H, jH*/
 		Eigen::MatrixXd H = Eigen::MatrixXd::Zero(Zi.size(), X.size());
-		H.block(0, size_robot_state + i*size_wall_state, size_robot_state + size_wall_state, size_wall_state) = Eigen::MatrixXd::Identity(size_wall_state, size_wall_state);
+		H.block(0, size_robot_state + i*size_wall_state, size_wall_state, size_wall_state) = Eigen::MatrixXd::Identity(size_wall_state, size_wall_state);
 		Eigen::MatrixXd jH = H;
 		/*R*/
 		const double sigma = 1.0e-1;
@@ -371,7 +376,7 @@ int WallEKFSLAM::SearchCorrespondWallID(Eigen::VectorXd Zi, Eigen::MatrixXd& jHi
 
 void WallEKFSLAM::Publication(void)
 {
-	std::cout << "Publication" << std::endl;
+	/* std::cout << "Publication" << std::endl; */
 
 	/*pose*/
 	geometry_msgs::PoseStamped pose_pub = StateVectorToPoseStamped();

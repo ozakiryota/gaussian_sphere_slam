@@ -7,20 +7,9 @@
 	<node pkg="rosbag" type="play" name="player" args="--clock /home/amsl/ozaki/bagfiles/infant/indoor_dkan/2019-04-04-14-27-47.bag -r 0.5"/>
 	<!-- <node pkg="rosbag" type="play" name="player" args="&#45;&#45;clock /home/amsl/ozaki/bagfiles/infant/indoor_dkan/2019&#45;04&#45;04&#45;14&#45;29&#45;45.bag"/> -->
 
-	<!-- rviz -->
-	<node pkg="rviz" type="rviz" name="rviz_perspective" args="-d /home/amsl/.rviz/wall_ekf_slam.rviz"/>
-
 	<!-- sensor driver -->
 	<include file="$(find velodyne_pointcloud)/launch/32e_points.launch"/>
-	<node pkg="pose_estimation_walls" name="odom_republish_infant" type="odom_republish_infant"/>
 
 	<!-- proposed method -->
-	<node pkg="gyrodometry" name="initial_alignment" type="initial_alignment" output="screen">
-		<param name="initial_orientation_is_0001" type="bool" value="true"/>
-	</node>
-	<node pkg="gaussian_sphere_slam" name="d_gaussian_sphere" type="d_gaussian_sphere"/>
-	<node pkg="gaussian_sphere_slam" name="wall_ekf_slam" type="wall_ekf_slam" output="screen"/>
-
-	<!-- comparisons	 -->
-	<node pkg="gyrodometry" name="gyrodometry3d" type="gyrodometry3d" output="screen"/>
+	<node pkg="gaussian_sphere_slam" name="d_gaussian_sphere" type="d_gaussian_sphere" output="screen"/>
 </launch>
