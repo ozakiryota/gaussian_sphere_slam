@@ -359,6 +359,13 @@ int WallEKFSLAM::SearchCorrespondWallID(Eigen::VectorXd Zi, Eigen::MatrixXd& jHi
 
 		double mahalanobis_dist = Y.transpose()*S.inverse()*Y;
 		std::cout << "mahalanobis_dist = " << mahalanobis_dist << std::endl;
+		if(std::isnan(mahalanobis_dist)){	//test
+			std::cout << "X =" << std::endl << X << std::endl;
+			std::cout << "S =" << std::endl << S << std::endl;
+			std::cout << "S.inverse() =" << std::endl << S.inverse() << std::endl;
+			std::cout << "Y =" << std::endl << Y << std::endl;
+			exit(1);
+		}
 		if(mahalanobis_dist<min_mahalanobis_dist){
 			min_mahalanobis_dist = mahalanobis_dist;
 			correspond_id = i;
@@ -410,9 +417,10 @@ void WallEKFSLAM::Publication(void)
 {
 	/* std::cout << "Publication" << std::endl; */
 
-	for(int i=0;i<3;i++){
-		if(fabs(X(3+i))>M_PI){
-			std::cout << "error" << std::endl;
+	for(int i=3;i<6;i++){	//test
+		if(fabs(X(i))>M_PI){
+			std::cout << "+PI -PI error" << std::endl;
+			std::cout << "X(" << i << ") = " << X(i) << std::endl;
 			exit(1);
 		}
 	}
