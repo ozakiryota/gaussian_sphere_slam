@@ -314,7 +314,7 @@ int WallEKFSLAM::SearchCorrespondWallID(Eigen::VectorXd Zi, Eigen::MatrixXd& jHi
 	int num_wall = (X.size() - size_robot_state)/size_wall_state;
 
 	const double threshold_mahalanobis = 2.0;
-	double min_mahalanobis = threshold_mahalanobis;
+	double min_mahalanobis_dist = threshold_mahalanobis;
 	int correspond_id = -1;
 	for(int i=0;i<num_wall;i++){
 		Eigen::Vector3d N = X.segment(size_robot_state + i*size_wall_state, size_wall_state);
@@ -330,10 +330,6 @@ int WallEKFSLAM::SearchCorrespondWallID(Eigen::VectorXd Zi, Eigen::MatrixXd& jHi
 			for(int k=0;k<3;k++)	jH(j, k) = -N(k)/d2*rotN(j);
 		}
 		/*dH/d(RPY)*/
-cos(RPY(1))*cos(RPY(2)),										cos(RPY(1))*sin(RPY(2)),										-sin(RPY(1)),
-sin(RPY(0))*sin(RPY(1))*cos(RPY(2)) - cos(RPY(0))*sin(RPY(2)),	sin(RPY(0))*sin(RPY(1))*sin(RPY(2)) + cos(RPY(0))*cos(RPY(2)),	sin(RPY(0))*cos(RPY(1)),
-cos(RPY(0))*sin(RPY(1))*cos(RPY(2)) + sin(RPY(0))*sin(RPY(2)),	cos(RPY(0))*sin(RPY(1))*sin(RPY(2)) - sin(RPY(0))*cos(RPY(2)),	cos(RPY(0))*cos(RPY(1));
-
 		Eigen::Vector3d delN = N - N.dot(X.segment(0, 3))/d2*N;
 		jH(0, 3) = 0;
 		jH(0, 4) = (-sin(RPY(1))*cos(RPY(2)))*delN(0) + (-sin(RPY(1))*sin(RPY(2)))*delN(1) + (-cos(RPY(1)))*delN(2);
@@ -361,8 +357,9 @@ cos(RPY(0))*sin(RPY(1))*cos(RPY(2)) + sin(RPY(0))*sin(RPY(2)),	cos(RPY(0))*sin(R
 		Eigen::MatrixXd S = jH*P*jH.transpose() + R;
 
 		double mahalanobis_dist = Y.transpose()*S.inverse()*Y;
-		std::cout << "mahalanobis_dist =" << mahalanobis_dist << std::endl;
-		if(mahalanobis_dist<min_mahalanobis){
+		std::cout << "mahalanobis_dist = " << mahalanobis_dist << std::endl;
+		if(mahalanobis_dist<min_mahalanobis_dist){
+			min_mahalanobis_dist = mahalanobis_dist;
 			correspond_id = i;
 			jHi = jH;
 			Yi = Y;
@@ -411,6 +408,13 @@ Eigen::Matrix3d WallEKFSLAM::GetRotationXYZMatrix(Eigen::Vector3d RPY, bool inve
 void WallEKFSLAM::Publication(void)
 {
 	/* std::cout << "Publication" << std::endl; */
+
+	for(int i=0;i<3;i++){
+		if(fabs(X(3+i))>M_PI){
+			std::cout << "error" << std::endl;
+			exit(1);
+		}
+	}
 
 	/*pose*/
 	geometry_msgs::PoseStamped pose_pub = StateVectorToPoseStamped();
