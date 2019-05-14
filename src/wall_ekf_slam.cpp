@@ -292,6 +292,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 		else{
 			Eigen::MatrixXd Ki = P*jHi.transpose()*Si.inverse();
 			X = X + Ki*Yi;
+			for(int i=3;i<6;i++)	X(i) = PiToPi(X(i));
 			Eigen::MatrixXd I = Eigen::MatrixXd::Identity(X.size(), X.size());
 			P = (I - Ki*jHi)*P;
 
