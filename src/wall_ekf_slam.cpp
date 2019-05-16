@@ -439,6 +439,13 @@ void WallEKFSLAM::Publication(void)
 			exit(1);
 		}
 	}
+	for(size_t i=0;i<X.size();i++){	//test
+		if(std::isnan(X(i))){
+			std::cout << "X(i) is NAN" << std::endl;
+			std::cout << "X(" << i << ") = " << X(i) << std::endl;
+			exit(1);
+		}
+	}
 
 	/*pose*/
 	geometry_msgs::PoseStamped pose_pub = StateVectorToPoseStamped();
