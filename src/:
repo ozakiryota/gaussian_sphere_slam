@@ -294,7 +294,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 			Eigen::MatrixXd I = Eigen::MatrixXd::Identity(X.size(), X.size());
 			P = (I - Ki*jHi)*P;
 
-			std::cout << "correspond_id =" << correspond_id << std::endl;
+			/* std::cout << "correspond_id =" << correspond_id << std::endl; */
 			std::cout << "Yi =" << std::endl << Yi << std::endl;
 			std::cout << "Ki*Yi =" << std::endl << Ki*Yi << std::endl;
 		}
