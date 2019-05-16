@@ -34,6 +34,7 @@ class WallEKFSLAM{
 		Eigen::VectorXd X;
 		Eigen::MatrixXd P;
 		sensor_msgs::Imu bias;
+		pcl::PointCloud<pcl::PointXYZ>::Ptr d_gaussian_sphere {new pcl::PointCloud<pcl::PointXYZ>};
 		/*flags*/
 		bool inipose_is_available = false;
 		bool bias_is_available = false;
@@ -53,10 +54,10 @@ class WallEKFSLAM{
 		void CallbackOdom(const nav_msgs::OdometryConstPtr& msg);
 		void PredictionOdom(nav_msgs::Odometry odom, double dt);
 		void CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr &msg);
-		int SearchCorrespondWallID(Eigen::VectorXd Zi, Eigen::MatrixXd& jHi, Eigen::VectorXd& Yi, Eigen::MatrixXd& Si);
-		Eigen::Vector3d PlaneGlobalToLocal(Eigen::Vector3d G);
-		Eigen::Vector3d PlaneLocalToGlobal(Eigen::Vector3d L);
-		Eigen::Matrix3d GetRotationXYZMatrix(Eigen::Vector3d RPY, bool inverse);
+		int SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::MatrixXd& jHi, Eigen::VectorXd& Yi, Eigen::MatrixXd& Si);
+		Eigen::Vector3d PlaneGlobalToLocal(const Eigen::Vector3d& G);
+		Eigen::Vector3d PlaneLocalToGlobal(const Eigen::Vector3d& L);
+		Eigen::Matrix3d GetRotationXYZMatrix(const Eigen::Vector3d& RPY, bool inverse);
 		void Publication();
 		geometry_msgs::PoseStamped StateVectorToPoseStamped(void);
 		pcl::PointCloud<pcl::PointXYZ> StateVectorToPC(void);
@@ -74,13 +75,6 @@ WallEKFSLAM::WallEKFSLAM()
 	pub_dgaussiansphere_est = nh.advertise<sensor_msgs::PointCloud2>("/d_gaussian_sphere_est", 1);
 	X = Eigen::VectorXd::Zero(size_robot_state);
 	P = Eigen::MatrixXd::Identity(size_robot_state, size_robot_state);
-
-	/*test*/
-	/* Eigen::VectorXd XYZ(9); */
-	/* XYZ << 0, 2, 0, 2, 0, 0, 0, 0 ,2; */
-	/* X.conservativeResize(X.size() + XYZ.size()); */
-	/* X.segment(X.size() - XYZ.size(), XYZ.size()) = XYZ; */
-	/* P = Eigen::MatrixXd::Identity(X.size(), X.size()); */
 }
 
 void WallEKFSLAM::CallbackInipose(const geometry_msgs::QuaternionConstPtr& msg)
@@ -155,6 +149,7 @@ void WallEKFSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 	Eigen::VectorXd F(X.size());
 	F.segment(0, 3) = X.segment(0, 3);
 	F.segment(3, 3) = X.segment(3, 3) + Rot_rpy*Drpy;
+	for(int i=3;i<6;i++)	F(i) = PiToPi(F(i));
 	F.segment(size_robot_state, num_wall*size_wall_state) = X.segment(size_robot_state, num_wall*size_wall_state);
 
 	/*jF*/
@@ -270,21 +265,24 @@ void WallEKFSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr &msg)
 {
 	std::cout << "Callback D-Gaussian Sphere" << std::endl;
+	std::cout << "num_wall = " << (X.size() - size_robot_state)/size_wall_state << std::endl;
 	
-	pcl::PointCloud<pcl::PointXYZ>::Ptr d_gaussian_sphere {new pcl::PointCloud<pcl::PointXYZ>};
 	pcl::fromROSMsg(*msg, *d_gaussian_sphere);
 	std::cout << "d_gaussian_sphere->points.size() = " << d_gaussian_sphere->points.size() << std::endl;
 	Eigen::VectorXd Xnew(0);
+
 	for(size_t i=0;i<d_gaussian_sphere->points.size();i++){
 		Eigen::Vector3d Zi(
 			d_gaussian_sphere->points[i].x,
 			d_gaussian_sphere->points[i].y,
 			d_gaussian_sphere->points[i].z
 		);
+		/* std::cout << "Zi =" << std::endl << Zi << std::endl; */
 		Eigen::MatrixXd jHi;
 		Eigen::VectorXd Yi;
 		Eigen::MatrixXd Si;
 		int correspond_id = SearchCorrespondWallID(Zi, jHi, Yi, Si);
+		/* correspond_id = -1;	//test */
 		if(correspond_id==-1){
 			Xnew.conservativeResize(Xnew.size() + size_wall_state);
 			Xnew.segment(Xnew.size() - size_wall_state, size_wall_state) = PlaneLocalToGlobal(Zi);
@@ -296,7 +294,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 			Eigen::MatrixXd I = Eigen::MatrixXd::Identity(X.size(), X.size());
 			P = (I - Ki*jHi)*P;
 
-			std::cout << "correspond_id =" << correspond_id << std::endl;
+			/* std::cout << "correspond_id =" << correspond_id << std::endl; */
 			/* std::cout << "Yi =" << std::endl << Yi << std::endl; */
 			/* std::cout << "Ki*Yi =" << std::endl << Ki*Yi << std::endl; */
 		}
@@ -310,19 +308,23 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 	Publication();
 }
 
-int WallEKFSLAM::SearchCorrespondWallID(Eigen::VectorXd Zi, Eigen::MatrixXd& jHi, Eigen::VectorXd& Yi, Eigen::MatrixXd& Si)
+int WallEKFSLAM::SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::MatrixXd& jHi, Eigen::VectorXd& Yi, Eigen::MatrixXd& Si)
 {
+	std::cout << "Zi = " << Zi << std::endl;
 	int num_wall = (X.size() - size_robot_state)/size_wall_state;
 
-	const double threshold_mahalanobis = 2.0;
-	double min_mahalanobis_dist = threshold_mahalanobis;
+	const double threshold_mahalanobis_dist = 0.36;	//chi-square distribution
+	double min_mahalanobis_dist = threshold_mahalanobis_dist;
+	const double threshold_euclidean_dist = 0.3;	//test
+	double min_euclidean_dist = threshold_euclidean_dist;	//test
 	int correspond_id = -1;
 	for(int i=0;i<num_wall;i++){
 		Eigen::Vector3d N = X.segment(size_robot_state + i*size_wall_state, size_wall_state);
 		Eigen::Vector3d RPY = X.segment(3, 3);
 		double d2 = N.dot(N);
 		/*H*/
-		Eigen::Vector3d H = PlaneLocalToGlobal(Zi);
+		/* Eigen::Vector3d H = PlaneLocalToGlobal(Zi);	//wrong */
+		Eigen::Vector3d H = PlaneGlobalToLocal(N);
 		/*jH*/
 		Eigen::MatrixXd jH = Eigen::MatrixXd::Zero(Zi.size(), X.size());
 		/*dH/d(XYZ)*/
@@ -358,28 +360,41 @@ int WallEKFSLAM::SearchCorrespondWallID(Eigen::VectorXd Zi, Eigen::MatrixXd& jHi
 		Eigen::MatrixXd S = jH*P*jH.transpose() + R;
 
 		double mahalanobis_dist = Y.transpose()*S.inverse()*Y;
-		std::cout << "mahalanobis_dist = " << mahalanobis_dist << std::endl;
+		double euclidean_dist = Y.norm();	//test
+		/* std::cout << "mahalanobis_dist = " << mahalanobis_dist << std::endl; */
+		std::cout << "H = " << H << std::endl;
+		std::cout << "euclidean_dist = " << euclidean_dist << std::endl;
 		if(std::isnan(mahalanobis_dist)){	//test
-			std::cout << "X =" << std::endl << X << std::endl;
-			std::cout << "S =" << std::endl << S << std::endl;
-			std::cout << "S.inverse() =" << std::endl << S.inverse() << std::endl;
-			std::cout << "Y =" << std::endl << Y << std::endl;
-			exit(1);
+			/* std::cout << "mahalanobis_dist is NAN" << std::endl; */
+			/* std::cout << "X =" << std::endl << X << std::endl; */
+			/* std::cout << "P =" << std::endl << P << std::endl; */
+			/* std::cout << "jH =" << std::endl << jH << std::endl; */
+			/* std::cout << "S =" << std::endl << S << std::endl; */
+			/* std::cout << "S.inverse() =" << std::endl << S.inverse() << std::endl; */
+			/* std::cout << "Y =" << std::endl << Y << std::endl; */
+			// exit(1);
 		}
-		if(mahalanobis_dist<min_mahalanobis_dist){
-			min_mahalanobis_dist = mahalanobis_dist;
+		if(euclidean_dist<min_euclidean_dist){	//test
+			min_euclidean_dist = euclidean_dist;
 			correspond_id = i;
 			jHi = jH;
 			Yi = Y;
 			Si = S;
 		}
+		// if(!std::isnan(mahalanobis_dist) && mahalanobis_dist<min_mahalanobis_dist){
+		// 	min_mahalanobis_dist = mahalanobis_dist;
+		// 	correspond_id = i;
+		// 	jHi = jH;
+		// 	Yi = Y;
+		// 	Si = S;
+		// }
 		/* std::cout << "jH =" << std::endl << jH << std::endl; */
 	}
 
 	return correspond_id;
 }
 
-Eigen::Vector3d WallEKFSLAM::PlaneGlobalToLocal(Eigen::Vector3d G)
+Eigen::Vector3d WallEKFSLAM::PlaneGlobalToLocal(const Eigen::Vector3d& G)
 {
 	Eigen::Vector3d DeltaVertical = X.segment(0, 3).dot(G)/G.dot(G)*G;
 	Eigen::Vector3d delL = G - DeltaVertical;
@@ -387,7 +402,7 @@ Eigen::Vector3d WallEKFSLAM::PlaneGlobalToLocal(Eigen::Vector3d G)
 	return L;
 }
 
-Eigen::Vector3d WallEKFSLAM::PlaneLocalToGlobal(Eigen::Vector3d L)
+Eigen::Vector3d WallEKFSLAM::PlaneLocalToGlobal(const Eigen::Vector3d& L)
 {
 	Eigen::Vector3d rotL = GetRotationXYZMatrix(X.segment(3, 3), false)*L;
 	Eigen::Vector3d DeltaVertical = X.segment(0, 3).dot(rotL)/rotL.dot(rotL)*rotL;
@@ -395,7 +410,7 @@ Eigen::Vector3d WallEKFSLAM::PlaneLocalToGlobal(Eigen::Vector3d L)
 	return G;
 }
 
-Eigen::Matrix3d WallEKFSLAM::GetRotationXYZMatrix(Eigen::Vector3d RPY, bool inverse)
+Eigen::Matrix3d WallEKFSLAM::GetRotationXYZMatrix(const Eigen::Vector3d& RPY, bool inverse)
 {
 	Eigen::Matrix3d Rot_xyz;
 	Rot_xyz <<

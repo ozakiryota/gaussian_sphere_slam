@@ -36,7 +36,7 @@ def ekf_slam(xEst, PEst, u, z):
 
     # Update
     for iz in range(len(z[:, 0])):  # for each observation
-        minid = search_correspond_LM_ID(xEst, PEst, z[iz, 0:2]) #iz番目の観測と最も似ているLMのインデックス番号
+        minid = search_correspond_LM_ID(xEst, PEst, z[iz, 0:2]) #iz番目の観測と最も似ているLMのインデックス番号を取得
 
         nLM = calc_n_LM(xEst)
         if minid == nLM:    #新しいLM判定
@@ -155,7 +155,7 @@ def search_correspond_LM_ID(xAug, PAug, zi):
     mdist = []
 
     for i in range(nLM):
-        lm = get_LM_Pos_from_state(xAug, i)
+        lm = get_LM_Pos_from_state(xAug, i) #i番目のLM情報（x, y）だけ抽出
         y, S, H = calc_innovation(lm, xAug, PAug, zi, i)
         mdist.append(y.T @ np.linalg.inv(S) @ y)
 

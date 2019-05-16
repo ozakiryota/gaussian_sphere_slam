@@ -86,17 +86,17 @@ Visualization Manager:
       Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
-      Max Intensity: 4096
+      Max Intensity: 115
       Min Color: 0; 0; 0
       Min Intensity: 0
       Name: PointCloud2
       Position Transformer: XYZ
       Queue Size: 10
       Selectable: true
-      Size (Pixels): 3
-      Size (m): 0.100000001
-      Style: Flat Squares
-      Topic: /d_gaussian_sphere_est
+      Size (Pixels): 1
+      Size (m): 0.00999999978
+      Style: Points
+      Topic: /velodyne_points
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
@@ -116,17 +116,17 @@ Visualization Manager:
       Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
-      Max Intensity: 108
+      Max Intensity: 4096
       Min Color: 0; 0; 0
       Min Intensity: 0
       Name: PointCloud2
       Position Transformer: XYZ
       Queue Size: 10
       Selectable: true
-      Size (Pixels): 3
-      Size (m): 0.00999999978
-      Style: Flat Squares
-      Topic: /velodyne_points
+      Size (Pixels): 5
+      Size (m): 0.100000001
+      Style: Points
+      Topic: /d_gaussian_sphere_est
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
@@ -153,9 +153,9 @@ Visualization Manager:
       Position Transformer: XYZ
       Queue Size: 10
       Selectable: true
-      Size (Pixels): 3
+      Size (Pixels): 5
       Size (m): 0.200000003
-      Style: Flat Squares
+      Style: Points
       Topic: /d_gaussian_sphere_obs
       Unreliable: false
       Use Fixed Frame: true
