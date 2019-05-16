@@ -171,6 +171,8 @@ void WallEKFSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 	jF(5, 5) = 1;
 	jF.block(3, size_robot_state, 3, num_wall*size_wall_state) = Eigen::MatrixXd::Zero(3, num_wall*size_wall_state);
 	/*jF-wall_xyz*/
+	jF.block(size_robot_state, 0, 3, 3) = Eigen::Matrix3d::Zero();
+	jF.block(size_robot_state, 3, 3, 3) = Eigen::Matrix3d::Zero();
 	jF.block(size_robot_state, size_robot_state, num_wall*size_wall_state, num_wall*size_wall_state) = Eigen::MatrixXd::Identity(num_wall*size_wall_state, num_wall*size_wall_state);
 	
 	/*Q*/
@@ -337,7 +339,7 @@ int WallEKFSLAM::SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::Matrix
 		jH(0, 4) = (-sin(RPY(1))*cos(RPY(2)))*delN(0) + (-sin(RPY(1))*sin(RPY(2)))*delN(1) + (-cos(RPY(1)))*delN(2);
 		jH(0, 5) = (-cos(RPY(1))*sin(RPY(2)))*delN(0) + (cos(RPY(1))*cos(RPY(2)))*delN(1);
 		jH(1, 3) = (cos(RPY(0))*sin(RPY(1))*cos(RPY(2)) + sin(RPY(0))*sin(RPY(2)))*delN(0) + (cos(RPY(0))*sin(RPY(1))*sin(RPY(2)) - sin(RPY(0))*cos(RPY(2)))*delN(1) + (cos(RPY(0))*cos(RPY(1)))*delN(2);
-		jH(1, 4) = (sin(RPY(0))*cos(RPY(1))*cos(RPY(2)))*delN(0) + (sin(RPY(0))*cos(RPY(1))*sin(RPY(2)))*delN(1) - (sin(RPY(0))*sin(RPY(1)))*delN(2);
+		jH(1, 4) = (sin(RPY(0))*cos(RPY(1))*cos(RPY(2)))*delN(0) + (sin(RPY(0))*cos(RPY(1))*sin(RPY(2)))*delN(1) + (-sin(RPY(0))*sin(RPY(1)))*delN(2);
 		jH(1, 5) = (-sin(RPY(0))*sin(RPY(1))*sin(RPY(2)) - cos(RPY(0))*cos(RPY(2)))*delN(0) + (sin(RPY(0))*sin(RPY(1))*cos(RPY(2)) - cos(RPY(0))*sin(RPY(2)))*delN(1);
 		jH(2, 3) = (-sin(RPY(0))*sin(RPY(1))*cos(RPY(2)) + cos(RPY(0))*sin(RPY(2)))*delN(0) + (-sin(RPY(0))*sin(RPY(1))*sin(RPY(2)) - cos(RPY(0))*cos(RPY(2)))*delN(1) + (-sin(RPY(0))*cos(RPY(1)))*delN(2);
 		jH(2, 4) = (cos(RPY(0))*cos(RPY(1))*cos(RPY(2)))*delN(0) + (cos(RPY(0))*cos(RPY(1))*sin(RPY(2)))*delN(1) + (-cos(RPY(0))*sin(RPY(1)))*delN(2);
@@ -346,7 +348,7 @@ int WallEKFSLAM::SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::Matrix
 		Eigen::Matrix3d Tmp;
 		for(int j=0;j<Zi.size();j++){
 			for(int k=0;k<size_wall_state;k++){
-				if(j==k)	Tmp(j, k) = 1 - ((N.dot(X.segment(0, 3)) + N(j)*X(j))/d2 - N(j)*N.dot(X.segment(0, 3))/(d2*d2)*2*N(k));
+				if(j==k)	Tmp(j, k) = 1 - ((N.dot(X.segment(0, 3)) + N(j)*X(k))/d2 - N(j)*N.dot(X.segment(0, 3))/(d2*d2)*2*N(k));
 				else	Tmp(j, k) = -(N(j)*X(k)/d2 - N(j)*N.dot(X.segment(0, 3))/(d2*d2)*2*N(k));
 			}
 		}
@@ -408,7 +410,6 @@ Eigen::Vector3d WallEKFSLAM::PlaneLocalToGlobal(const Eigen::Vector3d& L)
 	Eigen::Vector3d G = rotL + DeltaVertical;
 	return G;
 }
-
 Eigen::Matrix3d WallEKFSLAM::GetRotationXYZMatrix(const Eigen::Vector3d& RPY, bool inverse)
 {
 	Eigen::Matrix3d Rot_xyz;
