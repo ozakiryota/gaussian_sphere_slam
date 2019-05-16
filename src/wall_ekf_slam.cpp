@@ -249,8 +249,6 @@ void WallEKFSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 	jF.block(3, 3, 3, 3) = Eigen::Matrix3d::Identity();
 	jF.block(3, size_robot_state, 3, num_wall*size_wall_state) = Eigen::MatrixXd::Zero(3, num_wall*size_wall_state);
 	/*jF-wall_xyz*/
-	jF.block(size_robot_state, 0, 3, 3) = Eigen::Matrix3d::Zero();
-	jF.block(size_robot_state, 3, 3, 3) = Eigen::Matrix3d::Zero();
 	jF.block(size_robot_state, size_robot_state, num_wall*size_wall_state, num_wall*size_wall_state) = Eigen::MatrixXd::Identity(num_wall*size_wall_state, num_wall*size_wall_state);
 
 	/*Q*/
