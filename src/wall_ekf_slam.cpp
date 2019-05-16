@@ -290,6 +290,11 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 			Xnew.segment(Xnew.size() - size_wall_state, size_wall_state) = PlaneLocalToGlobal(Zi);
 		}
 		else{
+			std::cout << "P =" << std::endl << P << std::endl;
+			std::cout << "jHi =" << std::endl << jHi << std::endl;
+			std::cout << "Si =" << std::endl << Si << std::endl;
+			std::cout << "Si.inverse() =" << std::endl << Si.inverse() << std::endl;
+
 			Eigen::MatrixXd Ki = P*jHi.transpose()*Si.inverse();
 			X = X + Ki*Yi;
 			for(int i=3;i<6;i++)	X(i) = PiToPi(X(i));
@@ -297,8 +302,6 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 			P = (I - Ki*jHi)*P;
 
 			std::cout << "correspond_id =" << correspond_id << std::endl;
-			std::cout << "Si =" << std::endl << Si << std::endl;
-			std::cout << "Si.inverse() =" << std::endl << Si.inverse() << std::endl;
 			std::cout << "Yi =" << std::endl << Yi << std::endl;
 			std::cout << "Ki*Yi =" << std::endl << Ki*Yi << std::endl;
 		}
