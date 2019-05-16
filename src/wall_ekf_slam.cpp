@@ -176,7 +176,7 @@ void WallEKFSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 	jF.block(size_robot_state, size_robot_state, num_wall*size_wall_state, num_wall*size_wall_state) = Eigen::MatrixXd::Identity(num_wall*size_wall_state, num_wall*size_wall_state);
 	
 	/*Q*/
-	const double sigma = 1.0e-2;
+	const double sigma = 1.0e-4;
 	Eigen::MatrixXd Q = sigma*Eigen::MatrixXd::Identity(X.size(), X.size());
 	
 	/*Update*/
@@ -251,7 +251,7 @@ void WallEKFSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 	jF.block(size_robot_state, size_robot_state, num_wall*size_wall_state, num_wall*size_wall_state) = Eigen::MatrixXd::Identity(num_wall*size_wall_state, num_wall*size_wall_state);
 
 	/*Q*/
-	const double sigma = 1.0e-2;
+	const double sigma = 1.0e-4;
 	Eigen::MatrixXd Q = sigma*Eigen::MatrixXd::Identity(X.size(), X.size());
 	
 	/* std::cout << "X =" << std::endl << X << std::endl; */
