@@ -297,6 +297,8 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 			P = (I - Ki*jHi)*P;
 
 			std::cout << "correspond_id =" << correspond_id << std::endl;
+			std::cout << "Si =" << std::endl << Si << std::endl;
+			std::cout << "Si.inverse() =" << std::endl << Si.inverse() << std::endl;
 			std::cout << "Yi =" << std::endl << Yi << std::endl;
 			std::cout << "Ki*Yi =" << std::endl << Ki*Yi << std::endl;
 		}
@@ -441,7 +443,6 @@ void WallEKFSLAM::Publication(void)
 	}
 	for(size_t i=0;i<X.size();i++){	//test
 		if(std::isnan(X(i))){
-			std::cout << "P =" << std::endl << P << std::endl;
 			std::cout << "X(i) is NAN" << std::endl;
 			std::cout << "X(" << i << ") = " << X(i) << std::endl;
 			exit(1);
