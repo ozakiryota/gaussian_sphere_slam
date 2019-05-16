@@ -441,6 +441,7 @@ void WallEKFSLAM::Publication(void)
 	}
 	for(size_t i=0;i<X.size();i++){	//test
 		if(std::isnan(X(i))){
+			std::cout << "P =" << std::endl << P << std::endl;
 			std::cout << "X(i) is NAN" << std::endl;
 			std::cout << "X(" << i << ") = " << X(i) << std::endl;
 			exit(1);
