@@ -174,8 +174,8 @@ void WallEKFSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 	jF.block(size_robot_state, size_robot_state, num_wall*size_wall_state, num_wall*size_wall_state) = Eigen::MatrixXd::Identity(num_wall*size_wall_state, num_wall*size_wall_state);
 	
 	/*Q*/
-	/* const double sigma = 1.0e-4; */
-	const double sigma = 0;	//test
+	const double sigma = 1.0e-4;
+	/* const double sigma = 0;	//test */
 	Eigen::MatrixXd Q = sigma*Eigen::MatrixXd::Identity(X.size(), X.size());
 	
 	/*Update*/
@@ -250,8 +250,8 @@ void WallEKFSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 	jF.block(size_robot_state, size_robot_state, num_wall*size_wall_state, num_wall*size_wall_state) = Eigen::MatrixXd::Identity(num_wall*size_wall_state, num_wall*size_wall_state);
 
 	/*Q*/
-	/* const double sigma = 1.0e-4; */
-	const double sigma = 0;	//test
+	const double sigma = 1.0e-4;
+	/* const double sigma = 0;	//test */
 	Eigen::MatrixXd Q = sigma*Eigen::MatrixXd::Identity(X.size(), X.size());
 	
 	/* std::cout << "X =" << std::endl << X << std::endl; */
@@ -359,8 +359,8 @@ int WallEKFSLAM::SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::Matrix
 		}
 		jH.block(0, size_robot_state + i*size_wall_state, Zi.size(), size_wall_state) = GetRotationXYZMatrix(RPY, true)*Tmp;
 		/*R*/
-		/* const double sigma = 1.0e-4; */
-		const double sigma = 0;	//test
+		const double sigma = 1.0e-4;
+		/* const double sigma = 0;	//test */
 		Eigen::MatrixXd R = sigma*Eigen::MatrixXd::Identity(Zi.size(), Zi.size());
 		/*Y, S*/
 		Eigen::VectorXd Y = Zi - H;
