@@ -95,7 +95,6 @@ void WallEKFSLAM::SetUpVisualizationMarker(visualization_msgs::Marker& marker)
 	marker.scale.x = 0.1;
 	marker.color.g = 1.0;
 	marker.color.a = 1.0;
-	// marker.lifetime = ros::Duration();
 }
 
 void WallEKFSLAM::CallbackInipose(const geometry_msgs::QuaternionConstPtr& msg)
@@ -346,7 +345,7 @@ int WallEKFSLAM::SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::Matrix
 
 	const double threshold_mahalanobis_dist = 0.36;	//chi-square distribution
 	double min_mahalanobis_dist = threshold_mahalanobis_dist;
-	const double threshold_euclidean_dist = 0.1;	//test
+	const double threshold_euclidean_dist = 0.2;	//test
 	double min_euclidean_dist = threshold_euclidean_dist;	//test
 	int correspond_id = -1;
 	for(int i=0;i<num_wall;i++){
