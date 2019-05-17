@@ -4,13 +4,10 @@
 #include <nav_msgs/Odometry.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <geometry_msgs/PoseStamped.h>
-/* #include <std_msgs/Float64MultiArray.h> */
+#include <visualization_msgs/Marker.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <tf/tf.h>
 #include <tf/transform_broadcaster.h>
-/* #include <pcl/common/transforms.h> */
-/* #include <pcl/kdtree/kdtree_flann.h> */
-/* #include <pcl/visualization/cloud_viewer.h> */
 // #include <Eigen/Core>
 // #include <Eigen/LU>
 
@@ -27,6 +24,7 @@ class WallEKFSLAM{
 		tf::TransformBroadcaster tf_broadcaster;
 		ros::Publisher pub_pose;
 		ros::Publisher pub_dgaussiansphere_est;
+		ros::Publisher pub_marker;
 		/*const*/
 		const int size_robot_state = 6;	//X, Y, Z, R, P, Y (Global)
 		const int size_wall_state = 3;	//x, y, z (Local)
@@ -45,8 +43,11 @@ class WallEKFSLAM{
 		ros::Time time_imu_last;
 		ros::Time time_odom_now;
 		ros::Time time_odom_last;
+		/*visualization*/
+		visualization_msgs::Marker matching_lines;
 	public:
 		WallEKFSLAM();
+		void SetUpVisualizationMarker(visualization_msgs::Marker& marker);	//visualization
 		void CallbackInipose(const geometry_msgs::QuaternionConstPtr& msg);
 		void CallbackBias(const sensor_msgs::ImuConstPtr& msg);
 		void CallbackIMU(const sensor_msgs::ImuConstPtr& msg);
@@ -58,6 +59,7 @@ class WallEKFSLAM{
 		Eigen::Vector3d PlaneGlobalToLocal(const Eigen::Vector3d& G);
 		Eigen::Vector3d PlaneLocalToGlobal(const Eigen::Vector3d& L);
 		Eigen::Matrix3d GetRotationXYZMatrix(const Eigen::Vector3d& RPY, bool inverse);
+		void PushBackMatchingLine(const Eigen::Vector3d& S, const Eigen::Vector3d& G);	//vialization
 		void Publication();
 		geometry_msgs::PoseStamped StateVectorToPoseStamped(void);
 		pcl::PointCloud<pcl::PointXYZ> StateVectorToPC(void);
@@ -73,8 +75,27 @@ WallEKFSLAM::WallEKFSLAM()
 	sub_dgaussiansphere_obs = nh.subscribe("/d_gaussian_sphere_obs", 1, &WallEKFSLAM::CallbackDGaussianSphere, this);
 	pub_pose = nh.advertise<geometry_msgs::PoseStamped>("/pose_wall_ekf_slam", 1);
 	pub_dgaussiansphere_est = nh.advertise<sensor_msgs::PointCloud2>("/d_gaussian_sphere_est", 1);
+	pub_marker = nh.advertise<visualization_msgs::Marker>("matching_lines", 1);
 	X = Eigen::VectorXd::Zero(size_robot_state);
 	P = Eigen::MatrixXd::Identity(size_robot_state, size_robot_state);
+	SetUpVisualizationMarker(matching_lines);
+}
+
+void WallEKFSLAM::SetUpVisualizationMarker(visualization_msgs::Marker& marker)
+{
+	marker.header.frame_id = "/odom";
+	marker.ns = "matching_lines";
+	marker.id = 0;
+	marker.action = visualization_msgs::Marker::ADD;
+	marker.pose.orientation.x = 0.0;
+	marker.pose.orientation.y = 0.0;
+	marker.pose.orientation.z = 0.0;
+	marker.pose.orientation.w = 1.0;
+	marker.type = visualization_msgs::Marker::LINE_LIST;
+	marker.scale.x = 0.1;
+	marker.color.g = 1.0;
+	marker.color.a = 1.0;
+	// marker.lifetime = ros::Duration();
 }
 
 void WallEKFSLAM::CallbackInipose(const geometry_msgs::QuaternionConstPtr& msg)
@@ -272,6 +293,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 	pcl::fromROSMsg(*msg, *d_gaussian_sphere);
 	std::cout << "d_gaussian_sphere->points.size() = " << d_gaussian_sphere->points.size() << std::endl;
 	Eigen::VectorXd Xnew(0);
+	matching_lines.points.clear();
 
 	for(size_t i=0;i<d_gaussian_sphere->points.size();i++){
 		Eigen::Vector3d Zi(
@@ -290,6 +312,8 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 			Xnew.segment(Xnew.size() - size_wall_state, size_wall_state) = PlaneLocalToGlobal(Zi);
 		}
 		else{
+			PushBackMatchingLine(X.segment(size_robot_state + correspond_id*size_wall_state, size_wall_state), GetRotationXYZMatrix(X.segment(3, 3), false)*Zi + X.segment(0, 3));
+
 			std::cout << "P =" << std::endl << P << std::endl;
 			std::cout << "jHi =" << std::endl << jHi << std::endl;
 			std::cout << "Si =" << std::endl << Si << std::endl;
@@ -477,6 +501,10 @@ void WallEKFSLAM::Publication(void)
 	pc_pub.header.frame_id = "/odom";
 	pc_pub.header.stamp = time_imu_now;
 	pub_dgaussiansphere_est.publish(pc_pub);
+
+	/*visualization marker*/
+	matching_lines.header.stamp = time_imu_now;
+	pub_marker.publish(matching_lines);
 }
 
 geometry_msgs::PoseStamped WallEKFSLAM::StateVectorToPoseStamped(void)
@@ -506,6 +534,20 @@ pcl::PointCloud<pcl::PointXYZ> WallEKFSLAM::StateVectorToPC(void)
 		pc->points.push_back(tmp);
 	}
 	return *pc;
+}
+
+void WallEKFSLAM::PushBackMatchingLine(const Eigen::Vector3d& S, const Eigen::Vector3d& G)
+{
+	geometry_msgs::Point tmp_s;
+	tmp_s.x = S[0];
+	tmp_s.y = S[1];
+	tmp_s.z = S[2];
+	geometry_msgs::Point tmp_g;
+	tmp_g.x = G[0];
+	tmp_g.y = G[1];
+	tmp_g.z = G[2];
+	matching_lines.points.push_back(tmp_s);
+	matching_lines.points.push_back(tmp_g);
 }
 
 double WallEKFSLAM::PiToPi(double angle)

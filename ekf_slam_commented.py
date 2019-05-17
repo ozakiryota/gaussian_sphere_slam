@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 
 # EKF state covariance
-Cx = np.diag([0.5, 0.5, np.deg2rad(30.0)])**2
+Cx = np.diag([0.5, 0.5, np.deg2rad(30.0)])**2   #2乗された各成分を対角要素とすす対角行列
 
 #  Simulation parameter
 Qsim = np.diag([0.2, np.deg2rad(1.0)])**2
