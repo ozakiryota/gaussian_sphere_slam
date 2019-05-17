@@ -196,8 +196,8 @@ void WallEKFSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 	
 	/*Q*/
 	const double sigma = 1.0e-4;
-	/* const double sigma = 0;	//test */
 	Eigen::MatrixXd Q = sigma*Eigen::MatrixXd::Identity(X.size(), X.size());
+	Q.block(size_robot_state, size_robot_state, num_wall*size_wall_state, num_wall*size_wall_state) = Eigen::MatrixXd::Zero(num_wall*size_wall_state, num_wall*size_wall_state);
 	
 	/*Update*/
 	X = F;
@@ -272,8 +272,8 @@ void WallEKFSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 
 	/*Q*/
 	const double sigma = 1.0e-4;
-	/* const double sigma = 0;	//test */
 	Eigen::MatrixXd Q = sigma*Eigen::MatrixXd::Identity(X.size(), X.size());
+	Q.block(size_robot_state, size_robot_state, num_wall*size_wall_state, num_wall*size_wall_state) = Eigen::MatrixXd::Zero(num_wall*size_wall_state, num_wall*size_wall_state);
 	
 	/* std::cout << "X =" << std::endl << X << std::endl; */
 	/* std::cout << "P =" << std::endl << P << std::endl; */
@@ -346,7 +346,7 @@ int WallEKFSLAM::SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::Matrix
 
 	const double threshold_mahalanobis_dist = 0.36;	//chi-square distribution
 	double min_mahalanobis_dist = threshold_mahalanobis_dist;
-	const double threshold_euclidean_dist = 0.3;	//test
+	const double threshold_euclidean_dist = 0.1;	//test
 	double min_euclidean_dist = threshold_euclidean_dist;	//test
 	int correspond_id = -1;
 	for(int i=0;i<num_wall;i++){
@@ -383,8 +383,7 @@ int WallEKFSLAM::SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::Matrix
 		}
 		jH.block(0, size_robot_state + i*size_wall_state, Zi.size(), size_wall_state) = GetRotationXYZMatrix(RPY, true)*Tmp;
 		/*R*/
-		const double sigma = 1.0e-4;
-		/* const double sigma = 0;	//test */
+		const double sigma = 1.0e-2;
 		Eigen::MatrixXd R = sigma*Eigen::MatrixXd::Identity(Zi.size(), Zi.size());
 		/*Y, S*/
 		Eigen::VectorXd Y = Zi - H;
