@@ -364,7 +364,7 @@ int WallEKFSLAM::SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::Vector
 
 	const double threshold_mahalanobis_dist = 0.36;	//chi-square distribution
 	double min_mahalanobis_dist = threshold_mahalanobis_dist;
-	const double threshold_euclidean_dist = 0.2;	//test
+	const double threshold_euclidean_dist = 0.18;	//test
 	double min_euclidean_dist = threshold_euclidean_dist;	//test
 	int correspond_id = -1;
 	for(int i=0;i<num_wall;i++){
@@ -411,7 +411,7 @@ int WallEKFSLAM::SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::Vector
 		double euclidean_dist = Y.norm();	//test
 		/* std::cout << "mahalanobis_dist = " << mahalanobis_dist << std::endl; */
 		/* std::cout << "H = " << H << std::endl; */
-		std::cout << "euclidean_dist = " << euclidean_dist << std::endl;
+		// std::cout << "euclidean_dist = " << euclidean_dist << std::endl;
 		if(std::isnan(mahalanobis_dist)){	//test
 			/* std::cout << "mahalanobis_dist is NAN" << std::endl; */
 			/* std::cout << "X =" << std::endl << X << std::endl; */
