@@ -93,7 +93,9 @@ void WallEKFSLAM::SetUpVisualizationMarker(visualization_msgs::Marker& marker)
 	marker.pose.orientation.w = 1.0;
 	marker.type = visualization_msgs::Marker::LINE_LIST;
 	marker.scale.x = 0.1;
-	marker.color.g = 1.0;
+	marker.color.r = 0.0;
+	marker.color.g = 0.0;
+	marker.color.b = 1.0;
 	marker.color.a = 1.0;
 }
 
@@ -345,7 +347,7 @@ int WallEKFSLAM::SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::Matrix
 
 	const double threshold_mahalanobis_dist = 0.36;	//chi-square distribution
 	double min_mahalanobis_dist = threshold_mahalanobis_dist;
-	const double threshold_euclidean_dist = 0.1;	//test
+	const double threshold_euclidean_dist = 0.2;	//test
 	double min_euclidean_dist = threshold_euclidean_dist;	//test
 	int correspond_id = -1;
 	for(int i=0;i<num_wall;i++){
@@ -392,7 +394,7 @@ int WallEKFSLAM::SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::Matrix
 		double euclidean_dist = Y.norm();	//test
 		/* std::cout << "mahalanobis_dist = " << mahalanobis_dist << std::endl; */
 		/* std::cout << "H = " << H << std::endl; */
-		/* std::cout << "euclidean_dist = " << euclidean_dist << std::endl; */
+		std::cout << "euclidean_dist = " << euclidean_dist << std::endl;
 		if(std::isnan(mahalanobis_dist)){	//test
 			/* std::cout << "mahalanobis_dist is NAN" << std::endl; */
 			/* std::cout << "X =" << std::endl << X << std::endl; */
