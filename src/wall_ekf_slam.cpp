@@ -55,7 +55,10 @@ class WallEKFSLAM{
 		void CallbackOdom(const nav_msgs::OdometryConstPtr& msg);
 		void PredictionOdom(nav_msgs::Odometry odom, double dt);
 		void CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr &msg);
-		int SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::MatrixXd& jHi, Eigen::VectorXd& Yi, Eigen::MatrixXd& Si);
+		int SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::VectorXd& Hi, Eigen::MatrixXd& jHi, Eigen::VectorXd& Yi, Eigen::MatrixXd& Si);
+		void VectorVStack(Eigen::VectorXd& A, const Eigen::VectorXd& B);
+		void MatrixVStack(Eigen::MatrixXd& A, const Eigen::MatrixXd& B);
+		void ObservationUpdate(const Eigen::VectorXd& Z, const Eigen::VectorXd& H, const Eigen::MatrixXd& jH);
 		Eigen::Vector3d PlaneGlobalToLocal(const Eigen::Vector3d& G);
 		Eigen::Vector3d PlaneLocalToGlobal(const Eigen::Vector3d& L);
 		Eigen::Matrix3d GetRotationXYZMatrix(const Eigen::Vector3d& RPY, bool inverse);
@@ -294,6 +297,11 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 	pcl::fromROSMsg(*msg, *d_gaussian_sphere);
 	std::cout << "d_gaussian_sphere->points.size() = " << d_gaussian_sphere->points.size() << std::endl;
 	Eigen::VectorXd Xnew(0);
+
+	Eigen::VectorXd Zstacked(0);
+	Eigen::VectorXd Hstacked(0);
+	Eigen::MatrixXd jHstacked(0, 0);
+
 	matching_lines.points.clear();
 
 	for(size_t i=0;i<d_gaussian_sphere->points.size();i++){
@@ -303,34 +311,43 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 			d_gaussian_sphere->points[i].z
 		);
 		/* std::cout << "Zi =" << std::endl << Zi << std::endl; */
+		Eigen::VectorXd Hi;
 		Eigen::MatrixXd jHi;
 		Eigen::VectorXd Yi;
 		Eigen::MatrixXd Si;
-		int correspond_id = SearchCorrespondWallID(Zi, jHi, Yi, Si);
+		int correspond_id = SearchCorrespondWallID(Zi, Hi, jHi, Yi, Si);
 		/* correspond_id = -1;	//test */
 		if(correspond_id==-1){
-			Xnew.conservativeResize(Xnew.size() + size_wall_state);
-			Xnew.segment(Xnew.size() - size_wall_state, size_wall_state) = PlaneLocalToGlobal(Zi);
+			// Xnew.conservativeResize(Xnew.size() + size_wall_state);
+			// Xnew.segment(Xnew.size() - size_wall_state, size_wall_state) = PlaneLocalToGlobal(Zi);
+			VectorVStack(Xnew, PlaneLocalToGlobal(Zi));
 		}
 		else{
 			PushBackMatchingLine(X.segment(size_robot_state + correspond_id*size_wall_state, size_wall_state), GetRotationXYZMatrix(X.segment(3, 3), false)*Zi + X.segment(0, 3));
 
-			std::cout << "P =" << std::endl << P << std::endl;
-			std::cout << "jHi =" << std::endl << jHi << std::endl;
-			std::cout << "Si =" << std::endl << Si << std::endl;
-			std::cout << "Si.inverse() =" << std::endl << Si.inverse() << std::endl;
+			// std::cout << "P =" << std::endl << P << std::endl;
+			// std::cout << "jHi =" << std::endl << jHi << std::endl;
+			// std::cout << "Si =" << std::endl << Si << std::endl;
+			// std::cout << "Si.inverse() =" << std::endl << Si.inverse() << std::endl;
 
-			Eigen::MatrixXd Ki = P*jHi.transpose()*Si.inverse();
-			X = X + Ki*Yi;
-			for(int i=3;i<6;i++)	X(i) = PiToPi(X(i));
-			Eigen::MatrixXd I = Eigen::MatrixXd::Identity(X.size(), X.size());
-			P = (I - Ki*jHi)*P;
+			// Eigen::MatrixXd Ki = P*jHi.transpose()*Si.inverse();
+			// X = X + Ki*Yi;
+			// for(int i=3;i<6;i++)	X(i) = PiToPi(X(i));
+			// Eigen::MatrixXd I = Eigen::MatrixXd::Identity(X.size(), X.size());
+			// P = (I - Ki*jHi)*P;
 
-			std::cout << "correspond_id =" << correspond_id << std::endl;
-			std::cout << "Yi =" << std::endl << Yi << std::endl;
-			std::cout << "Ki*Yi =" << std::endl << Ki*Yi << std::endl;
+			VectorVStack(Zstacked, Zi);
+			VectorVStack(Hstacked, Hi);
+			MatrixVStack(jHstacked, jHi);
+
+			// std::cout << "correspond_id =" << correspond_id << std::endl;
+			// std::cout << "Yi =" << std::endl << Yi << std::endl;
+			// std::cout << "Ki*Yi =" << std::endl << Ki*Yi << std::endl;
 		}
 	}
+	/*update*/
+	if(Zstacked.size()>0)	ObservationUpdate(Zstacked, Hstacked, jHstacked);
+	/*Registration of new walls*/
 	X.conservativeResize(X.size() + Xnew.size());
 	X.segment(X.size() - Xnew.size(), Xnew.size()) = Xnew;
 	Eigen::MatrixXd Ptmp = P;
@@ -340,7 +357,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 	Publication();
 }
 
-int WallEKFSLAM::SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::MatrixXd& jHi, Eigen::VectorXd& Yi, Eigen::MatrixXd& Si)
+int WallEKFSLAM::SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::VectorXd& Hi, Eigen::MatrixXd& jHi, Eigen::VectorXd& Yi, Eigen::MatrixXd& Si)
 {
 	/* std::cout << "Zi = " << Zi << std::endl; */
 	int num_wall = (X.size() - size_robot_state)/size_wall_state;
@@ -408,6 +425,7 @@ int WallEKFSLAM::SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::Matrix
 		if(euclidean_dist<min_euclidean_dist){	//test
 			min_euclidean_dist = euclidean_dist;
 			correspond_id = i;
+			Hi = H;
 			jHi = jH;
 			Yi = Y;
 			Si = S;
@@ -423,6 +441,31 @@ int WallEKFSLAM::SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::Matrix
 	}
 
 	return correspond_id;
+}
+
+void WallEKFSLAM::VectorVStack(Eigen::VectorXd& A, const Eigen::VectorXd& B)
+{
+	A.conservativeResize(A.rows() + B.rows());
+	A.segment(A.size() - B.size(), B.size()) = B;
+}
+
+void WallEKFSLAM::MatrixVStack(Eigen::MatrixXd& A, const Eigen::MatrixXd& B)
+{
+	A.conservativeResize(A.rows() + B.rows(), B.cols());
+	A.block(A.rows() - B.rows(), 0, B.rows(), B.cols()) = B;
+}
+
+void WallEKFSLAM::ObservationUpdate(const Eigen::VectorXd& Z, const Eigen::VectorXd& H, const Eigen::MatrixXd& jH)
+{
+	Eigen::VectorXd Y = Z - H;
+	const double sigma = 1.0e-2;
+	Eigen::MatrixXd R = sigma*Eigen::MatrixXd::Identity(Z.size(), Z.size());
+	Eigen::MatrixXd S = jH*P*jH.transpose() + R;
+	Eigen::MatrixXd K = P*jH.transpose()*S.inverse();
+	X = X + K*Y;
+	for(int i=3;i<6;i++)	X(i) = PiToPi(X(i));
+	Eigen::MatrixXd I = Eigen::MatrixXd::Identity(X.size(), X.size());
+	P = (I - K*jH)*P;
 }
 
 Eigen::Vector3d WallEKFSLAM::PlaneGlobalToLocal(const Eigen::Vector3d& G)
