@@ -28,12 +28,17 @@ class WallEKFSLAM{
 		/*const*/
 		const int size_robot_state = 6;	//X, Y, Z, R, P, Y (Global)
 		const int size_wall_state = 3;	//x, y, z (Local)
+		/*struct*/
+		struct WallInfo{
+			bool is_inward;
+			int count_match;
+		};
 		/*objects*/
 		Eigen::VectorXd X;
 		Eigen::MatrixXd P;
 		sensor_msgs::Imu bias;
 		pcl::PointCloud<pcl::PointXYZ>::Ptr d_gaussian_sphere {new pcl::PointCloud<pcl::PointXYZ>};
-		std::vector<int> list_num_obs;
+		std::vector<WallInfo> list_wall_info;
 		/*flags*/
 		bool inipose_is_available = false;
 		bool bias_is_available = false;
@@ -57,16 +62,18 @@ class WallEKFSLAM{
 		void PredictionOdom(nav_msgs::Odometry odom, double dt);
 		void CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr &msg);
 		int SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::VectorXd& Hi, Eigen::MatrixXd& jHi, Eigen::VectorXd& Yi, Eigen::MatrixXd& Si);
+		void PushBackWallInfo(const Eigen::Vector3d& Ng);
+		bool CheckNormalIsInward(const Eigen::Vector3d& Ng);
 		void VectorVStack(Eigen::VectorXd& A, const Eigen::VectorXd& B);
 		void MatrixVStack(Eigen::MatrixXd& A, const Eigen::MatrixXd& B);
 		void ObservationUpdate(const Eigen::VectorXd& Z, const Eigen::VectorXd& H, const Eigen::MatrixXd& jH);
-		Eigen::Vector3d PlaneGlobalToLocal(const Eigen::Vector3d& G);
-		Eigen::Vector3d PlaneLocalToGlobal(const Eigen::Vector3d& L);
-		Eigen::Matrix3d GetRotationXYZMatrix(const Eigen::Vector3d& RPY, bool inverse);
-		void PushBackMatchingLine(const Eigen::Vector3d& S, const Eigen::Vector3d& G);	//visualization
+		Eigen::Vector3d PlaneGlobalToLocal(const Eigen::Vector3d& Ng);
+		Eigen::Vector3d PlaneLocalToGlobal(const Eigen::Vector3d& Nl);
+		void PushBackMatchingLine(const Eigen::Vector3d& P1, const Eigen::Vector3d& P2);	//visualization
 		void Publication();
 		geometry_msgs::PoseStamped StateVectorToPoseStamped(void);
 		pcl::PointCloud<pcl::PointXYZ> StateVectorToPC(void);
+		Eigen::Matrix3d GetRotationXYZMatrix(const Eigen::Vector3d& RPY, bool inverse);
 		double PiToPi(double angle);
 };
 
@@ -324,7 +331,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 			// Xnew.conservativeResize(Xnew.size() + size_wall_state);
 			// Xnew.segment(Xnew.size() - size_wall_state, size_wall_state) = PlaneLocalToGlobal(Zi);
 			VectorVStack(Xnew, PlaneLocalToGlobal(Zi));
-			list_num_obs.push_back(0);
+			PushBackWallInfo(PlaneLocalToGlobal(Zi));
 		}
 		else{
 			// PushBackMatchingLine(X.segment(size_robot_state + correspond_id*size_wall_state, size_wall_state), GetRotationXYZMatrix(X.segment(3, 3), false)*Zi + X.segment(0, 3));
@@ -340,14 +347,10 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 			// Eigen::MatrixXd I = Eigen::MatrixXd::Identity(X.size(), X.size());
 			// P = (I - Ki*jHi)*P;
 
-			list_num_obs[correspond_id] += 1;
-			const int threshold_num_obs = 0;
-			if(list_num_obs[correspond_id]>threshold_num_obs){
-				PushBackMatchingLine(X.segment(size_robot_state + correspond_id*size_wall_state, size_wall_state), GetRotationXYZMatrix(X.segment(3, 3), false)*Zi + X.segment(0, 3));
-				VectorVStack(Zstacked, Zi);
-				VectorVStack(Hstacked, Hi);
-				MatrixVStack(jHstacked, jHi);
-			}
+			PushBackMatchingLine(X.segment(size_robot_state + correspond_id*size_wall_state, size_wall_state), GetRotationXYZMatrix(X.segment(3, 3), false)*Zi + X.segment(0, 3));
+			VectorVStack(Zstacked, Zi);
+			VectorVStack(Hstacked, Hi);
+			MatrixVStack(jHstacked, jHi);
 
 			// std::cout << "correspond_id =" << correspond_id << std::endl;
 			// std::cout << "Yi =" << std::endl << Yi << std::endl;
@@ -431,7 +434,7 @@ int WallEKFSLAM::SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::Vector
 			/* std::cout << "Y =" << std::endl << Y << std::endl; */
 			// exit(1);
 		}
-		if(euclidean_dist<min_euclidean_dist){	//test
+		if(euclidean_dist<min_euclidean_dist && list_wall_info[i].is_inward==CheckNormalIsInward(X.segment(size_robot_state+i*size_wall_state, 3))){	//test
 			min_euclidean_dist = euclidean_dist;
 			correspond_id = i;
 			Hi = H;
@@ -450,6 +453,23 @@ int WallEKFSLAM::SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::Vector
 	}
 
 	return correspond_id;
+}
+
+void WallEKFSLAM::PushBackWallInfo(const Eigen::Vector3d& Ng)
+{
+	WallInfo tmp;
+	tmp.is_inward = CheckNormalIsInward(Ng);
+	tmp.count_match = 0;
+	list_wall_info.push_back(tmp);
+}
+
+bool WallEKFSLAM::CheckNormalIsInward(const Eigen::Vector3d& Ng)
+{
+	double dist_wall = Ng.norm();
+	Eigen::Vector3d VerticalPosition = X.segment(0, 3).dot(Ng)/Ng.dot(Ng)*Ng;
+	double dist_robot = VerticalPosition.norm();
+	if(dist_robot<dist_wall)	return true;
+	else	return false;
 }
 
 void WallEKFSLAM::VectorVStack(Eigen::VectorXd& A, const Eigen::VectorXd& B)
@@ -477,38 +497,20 @@ void WallEKFSLAM::ObservationUpdate(const Eigen::VectorXd& Z, const Eigen::Vecto
 	P = (I - K*jH)*P;
 }
 
-Eigen::Vector3d WallEKFSLAM::PlaneGlobalToLocal(const Eigen::Vector3d& G)
+Eigen::Vector3d WallEKFSLAM::PlaneGlobalToLocal(const Eigen::Vector3d& Ng)
 {
-	Eigen::Vector3d DeltaVertical = X.segment(0, 3).dot(G)/G.dot(G)*G;
-	Eigen::Vector3d delL = G - DeltaVertical;
-	Eigen::Vector3d L = GetRotationXYZMatrix(X.segment(3, 3), true)*delL;
-	return L;
+	Eigen::Vector3d DeltaVertical = X.segment(0, 3).dot(Ng)/Ng.dot(Ng)*Ng;
+	Eigen::Vector3d delL = Ng - DeltaVertical;
+	Eigen::Vector3d Nl = GetRotationXYZMatrix(X.segment(3, 3), true)*delL;
+	return Nl;
 }
 
-Eigen::Vector3d WallEKFSLAM::PlaneLocalToGlobal(const Eigen::Vector3d& L)
+Eigen::Vector3d WallEKFSLAM::PlaneLocalToGlobal(const Eigen::Vector3d& Nl)
 {
-	Eigen::Vector3d rotL = GetRotationXYZMatrix(X.segment(3, 3), false)*L;
+	Eigen::Vector3d rotL = GetRotationXYZMatrix(X.segment(3, 3), false)*Nl;
 	Eigen::Vector3d DeltaVertical = X.segment(0, 3).dot(rotL)/rotL.dot(rotL)*rotL;
-	Eigen::Vector3d G = rotL + DeltaVertical;
-	return G;
-}
-
-Eigen::Matrix3d WallEKFSLAM::GetRotationXYZMatrix(const Eigen::Vector3d& RPY, bool inverse)
-{
-	Eigen::Matrix3d Rot_xyz;
-	Rot_xyz <<
-		cos(RPY(1))*cos(RPY(2)),	sin(RPY(0))*sin(RPY(1))*cos(RPY(2)) - cos(RPY(0))*sin(RPY(2)),	cos(RPY(0))*sin(RPY(1))*cos(RPY(2)) + sin(RPY(0))*sin(RPY(2)),
-		cos(RPY(1))*sin(RPY(2)),	sin(RPY(0))*sin(RPY(1))*sin(RPY(2)) + cos(RPY(0))*cos(RPY(2)),	cos(RPY(0))*sin(RPY(1))*sin(RPY(2)) - sin(RPY(0))*cos(RPY(2)),
-		-sin(RPY(1)),				sin(RPY(0))*cos(RPY(1)),										cos(RPY(0))*cos(RPY(1));
-	
-	Eigen::Matrix3d Rot_xyz_inv;
-	Rot_xyz_inv <<
-		cos(RPY(1))*cos(RPY(2)),										cos(RPY(1))*sin(RPY(2)),										-sin(RPY(1)),
-		sin(RPY(0))*sin(RPY(1))*cos(RPY(2)) - cos(RPY(0))*sin(RPY(2)),	sin(RPY(0))*sin(RPY(1))*sin(RPY(2)) + cos(RPY(0))*cos(RPY(2)),	sin(RPY(0))*cos(RPY(1)),
-		cos(RPY(0))*sin(RPY(1))*cos(RPY(2)) + sin(RPY(0))*sin(RPY(2)),	cos(RPY(0))*sin(RPY(1))*sin(RPY(2)) - sin(RPY(0))*cos(RPY(2)),	cos(RPY(0))*cos(RPY(1));
-
-	if(!inverse)	return Rot_xyz;
-	else	return Rot_xyz_inv;	//=Rot_xyz.transpose()
+	Eigen::Vector3d Ng = rotL + DeltaVertical;
+	return Ng;
 }
 
 void WallEKFSLAM::Publication(void)
@@ -589,18 +591,36 @@ pcl::PointCloud<pcl::PointXYZ> WallEKFSLAM::StateVectorToPC(void)
 	return *pc;
 }
 
-void WallEKFSLAM::PushBackMatchingLine(const Eigen::Vector3d& S, const Eigen::Vector3d& G)
+void WallEKFSLAM::PushBackMatchingLine(const Eigen::Vector3d& P1, const Eigen::Vector3d& P2)
 {
-	geometry_msgs::Point tmp_s;
-	tmp_s.x = S[0];
-	tmp_s.y = S[1];
-	tmp_s.z = S[2];
-	geometry_msgs::Point tmp_g;
-	tmp_g.x = G[0];
-	tmp_g.y = G[1];
-	tmp_g.z = G[2];
-	matching_lines.points.push_back(tmp_s);
-	matching_lines.points.push_back(tmp_g);
+	geometry_msgs::Point tmp_p1;
+	tmp_p1.x = P1[0];
+	tmp_p1.y = P1[1];
+	tmp_p1.z = P1[2];
+	geometry_msgs::Point tmp_p2;
+	tmp_p2.x = P2[0];
+	tmp_p2.y = P2[1];
+	tmp_p2.z = P2[2];
+	matching_lines.points.push_back(tmp_p1);
+	matching_lines.points.push_back(tmp_p2);
+}
+
+Eigen::Matrix3d WallEKFSLAM::GetRotationXYZMatrix(const Eigen::Vector3d& RPY, bool inverse)
+{
+	Eigen::Matrix3d Rot_xyz;
+	Rot_xyz <<
+		cos(RPY(1))*cos(RPY(2)),	sin(RPY(0))*sin(RPY(1))*cos(RPY(2)) - cos(RPY(0))*sin(RPY(2)),	cos(RPY(0))*sin(RPY(1))*cos(RPY(2)) + sin(RPY(0))*sin(RPY(2)),
+		cos(RPY(1))*sin(RPY(2)),	sin(RPY(0))*sin(RPY(1))*sin(RPY(2)) + cos(RPY(0))*cos(RPY(2)),	cos(RPY(0))*sin(RPY(1))*sin(RPY(2)) - sin(RPY(0))*cos(RPY(2)),
+		-sin(RPY(1)),				sin(RPY(0))*cos(RPY(1)),										cos(RPY(0))*cos(RPY(1));
+	
+	Eigen::Matrix3d Rot_xyz_inv;
+	Rot_xyz_inv <<
+		cos(RPY(1))*cos(RPY(2)),										cos(RPY(1))*sin(RPY(2)),										-sin(RPY(1)),
+		sin(RPY(0))*sin(RPY(1))*cos(RPY(2)) - cos(RPY(0))*sin(RPY(2)),	sin(RPY(0))*sin(RPY(1))*sin(RPY(2)) + cos(RPY(0))*cos(RPY(2)),	sin(RPY(0))*cos(RPY(1)),
+		cos(RPY(0))*sin(RPY(1))*cos(RPY(2)) + sin(RPY(0))*sin(RPY(2)),	cos(RPY(0))*sin(RPY(1))*sin(RPY(2)) - sin(RPY(0))*cos(RPY(2)),	cos(RPY(0))*cos(RPY(1));
+
+	if(!inverse)	return Rot_xyz;
+	else	return Rot_xyz_inv;	//=Rot_xyz.transpose()
 }
 
 double WallEKFSLAM::PiToPi(double angle)
