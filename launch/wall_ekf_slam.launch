@@ -22,5 +22,7 @@
 	<node pkg="gaussian_sphere_slam" name="wall_ekf_slam" type="wall_ekf_slam" output="screen"/>
 
 	<!-- comparisons	 -->
-	<node pkg="gyrodometry" name="gyrodometry3d" type="gyrodometry3d" output="screen"/>
+	<node pkg="gyrodometry" name="gyrodometry3d" type="gyrodometry3d" output="screen">
+		<remap from="/odom" to="/tinypower/odom/republished"/>
+	</node>
 </launch>
