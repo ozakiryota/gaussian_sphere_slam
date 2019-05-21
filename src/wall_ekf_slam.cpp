@@ -202,6 +202,7 @@ void WallEKFSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 	/*Q*/
 	const double sigma = 1.0e-4;
 	Eigen::MatrixXd Q = sigma*Eigen::MatrixXd::Identity(X.size(), X.size());
+	Q.block(0, 0, 3, 3) = Eigen::MatrixXd::Zero(3, 3);
 	Q.block(size_robot_state, size_robot_state, num_wall*size_wall_state, num_wall*size_wall_state) = Eigen::MatrixXd::Zero(num_wall*size_wall_state, num_wall*size_wall_state);
 	
 	/*Update*/
@@ -278,6 +279,7 @@ void WallEKFSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 	/*Q*/
 	const double sigma = 1.0e-4;
 	Eigen::MatrixXd Q = sigma*Eigen::MatrixXd::Identity(X.size(), X.size());
+	Q.block(3, 3, 3, 3) = Eigen::MatrixXd::Zero(3, 3);
 	Q.block(size_robot_state, size_robot_state, num_wall*size_wall_state, num_wall*size_wall_state) = Eigen::MatrixXd::Zero(num_wall*size_wall_state, num_wall*size_wall_state);
 	
 	/* std::cout << "X =" << std::endl << X << std::endl; */
@@ -339,7 +341,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 			// P = (I - Ki*jHi)*P;
 
 			list_num_obs[correspond_id] += 1;
-			const int threshold_num_obs = 10;
+			const int threshold_num_obs = 0;
 			if(list_num_obs[correspond_id]>threshold_num_obs){
 				PushBackMatchingLine(X.segment(size_robot_state + correspond_id*size_wall_state, size_wall_state), GetRotationXYZMatrix(X.segment(3, 3), false)*Zi + X.segment(0, 3));
 				VectorVStack(Zstacked, Zi);
@@ -465,7 +467,7 @@ void WallEKFSLAM::MatrixVStack(Eigen::MatrixXd& A, const Eigen::MatrixXd& B)
 void WallEKFSLAM::ObservationUpdate(const Eigen::VectorXd& Z, const Eigen::VectorXd& H, const Eigen::MatrixXd& jH)
 {
 	Eigen::VectorXd Y = Z - H;
-	const double sigma = 1.0e-2;
+	const double sigma = 1.0e-1;
 	Eigen::MatrixXd R = sigma*Eigen::MatrixXd::Identity(Z.size(), Z.size());
 	Eigen::MatrixXd S = jH*P*jH.transpose() + R;
 	Eigen::MatrixXd K = P*jH.transpose()*S.inverse();
