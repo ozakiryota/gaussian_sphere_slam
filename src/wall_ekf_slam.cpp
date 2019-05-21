@@ -325,7 +325,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 			list_num_obs.push_back(0);
 		}
 		else{
-			PushBackMatchingLine(X.segment(size_robot_state + correspond_id*size_wall_state, size_wall_state), GetRotationXYZMatrix(X.segment(3, 3), false)*Zi + X.segment(0, 3));
+			// PushBackMatchingLine(X.segment(size_robot_state + correspond_id*size_wall_state, size_wall_state), GetRotationXYZMatrix(X.segment(3, 3), false)*Zi + X.segment(0, 3));
 
 			// std::cout << "P =" << std::endl << P << std::endl;
 			// std::cout << "jHi =" << std::endl << jHi << std::endl;
@@ -339,8 +339,9 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 			// P = (I - Ki*jHi)*P;
 
 			list_num_obs[correspond_id] += 1;
-			const int threshold_num_obs = 5;
+			const int threshold_num_obs = 10;
 			if(list_num_obs[correspond_id]>threshold_num_obs){
+				PushBackMatchingLine(X.segment(size_robot_state + correspond_id*size_wall_state, size_wall_state), GetRotationXYZMatrix(X.segment(3, 3), false)*Zi + X.segment(0, 3));
 				VectorVStack(Zstacked, Zi);
 				VectorVStack(Hstacked, Hi);
 				MatrixVStack(jHstacked, jHi);
@@ -489,6 +490,7 @@ Eigen::Vector3d WallEKFSLAM::PlaneLocalToGlobal(const Eigen::Vector3d& L)
 	Eigen::Vector3d G = rotL + DeltaVertical;
 	return G;
 }
+
 Eigen::Matrix3d WallEKFSLAM::GetRotationXYZMatrix(const Eigen::Vector3d& RPY, bool inverse)
 {
 	Eigen::Matrix3d Rot_xyz;
