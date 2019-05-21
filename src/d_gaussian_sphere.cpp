@@ -35,6 +35,7 @@ class DGaussianSphere{
 		ros::Time time_pub;
 		/*flags*/
 		const bool mode_depth_is_ignored = false;
+		const bool mode_floor_is_used = true;
 	public:
 		DGaussianSphere();
 		void CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg);
@@ -207,8 +208,10 @@ void DGaussianSphere::FittingWalls_::Compute(DGaussianSphere &mainclass, size_t 
 		/*delete nan*/
 		if(std::isnan(plane_parameters[0]) || std::isnan(plane_parameters[1]) || std::isnan(plane_parameters[2]))	continue;
 		/*judge angle*/
-		const double threshold_angle = 30.0;	//[deg]
-		if(fabs(mainclass.AngleBetweenVectors(tmp_normal, mainclass.g_vector)-M_PI/2.0)>threshold_angle/180.0*M_PI)	continue;
+		if(!mainclass.mode_floor_is_used){
+			const double threshold_angle = 30.0;	//[deg]
+			if(fabs(mainclass.AngleBetweenVectors(tmp_normal, mainclass.g_vector)-M_PI/2.0)>threshold_angle/180.0*M_PI)	continue;
+		}
 		/*judge fitting error*/
 		const double threshold_fitting_error = 0.01;	//[m]
 		if(mainclass.ComputeSquareError(plane_parameters, indices)>threshold_fitting_error)	continue;
@@ -274,7 +277,7 @@ void DGaussianSphere::ClusterDGauss(void)
 	// const double cluster_distance = 0.1;
 	const double cluster_distance = 0.1;
 	// const int min_num_cluster_belongings = 20;
-	const int min_num_cluster_belongings = 10;
+	const int min_num_cluster_belongings = 30;
 	pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
 	tree->setInputCloud(d_gaussian_sphere);
 	std::vector<pcl::PointIndices> cluster_indices;
