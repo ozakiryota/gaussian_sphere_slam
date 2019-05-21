@@ -434,7 +434,7 @@ int WallEKFSLAM::SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::Vector
 			/* std::cout << "Y =" << std::endl << Y << std::endl; */
 			// exit(1);
 		}
-		if(euclidean_dist<min_euclidean_dist && list_wall_info[i].is_inward==CheckNormalIsInward(X.segment(size_robot_state+i*size_wall_state, 3))){	//test
+		if(euclidean_dist<min_euclidean_dist && list_wall_info[i].is_inward==CheckNormalIsInward(X.segment(size_robot_state+i*size_wall_state, size_wall_state))){	//test
 			min_euclidean_dist = euclidean_dist;
 			correspond_id = i;
 			Hi = H;
