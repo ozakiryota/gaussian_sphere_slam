@@ -33,6 +33,7 @@ class WallEKFSLAM{
 		Eigen::MatrixXd P;
 		sensor_msgs::Imu bias;
 		pcl::PointCloud<pcl::PointXYZ>::Ptr d_gaussian_sphere {new pcl::PointCloud<pcl::PointXYZ>};
+		std::vector<int> list_num_obs;
 		/*flags*/
 		bool inipose_is_available = false;
 		bool bias_is_available = false;
@@ -62,7 +63,7 @@ class WallEKFSLAM{
 		Eigen::Vector3d PlaneGlobalToLocal(const Eigen::Vector3d& G);
 		Eigen::Vector3d PlaneLocalToGlobal(const Eigen::Vector3d& L);
 		Eigen::Matrix3d GetRotationXYZMatrix(const Eigen::Vector3d& RPY, bool inverse);
-		void PushBackMatchingLine(const Eigen::Vector3d& S, const Eigen::Vector3d& G);	//vialization
+		void PushBackMatchingLine(const Eigen::Vector3d& S, const Eigen::Vector3d& G);	//visualization
 		void Publication();
 		geometry_msgs::PoseStamped StateVectorToPoseStamped(void);
 		pcl::PointCloud<pcl::PointXYZ> StateVectorToPC(void);
@@ -321,6 +322,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 			// Xnew.conservativeResize(Xnew.size() + size_wall_state);
 			// Xnew.segment(Xnew.size() - size_wall_state, size_wall_state) = PlaneLocalToGlobal(Zi);
 			VectorVStack(Xnew, PlaneLocalToGlobal(Zi));
+			list_num_obs.push_back(0);
 		}
 		else{
 			PushBackMatchingLine(X.segment(size_robot_state + correspond_id*size_wall_state, size_wall_state), GetRotationXYZMatrix(X.segment(3, 3), false)*Zi + X.segment(0, 3));
@@ -336,9 +338,13 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 			// Eigen::MatrixXd I = Eigen::MatrixXd::Identity(X.size(), X.size());
 			// P = (I - Ki*jHi)*P;
 
-			VectorVStack(Zstacked, Zi);
-			VectorVStack(Hstacked, Hi);
-			MatrixVStack(jHstacked, jHi);
+			list_num_obs[correspond_id] += 1;
+			const int threshold_num_obs = 5;
+			if(list_num_obs[correspond_id]>threshold_num_obs){
+				VectorVStack(Zstacked, Zi);
+				VectorVStack(Hstacked, Hi);
+				MatrixVStack(jHstacked, jHi);
+			}
 
 			// std::cout << "correspond_id =" << correspond_id << std::endl;
 			// std::cout << "Yi =" << std::endl << Yi << std::endl;
