@@ -36,6 +36,7 @@ class DGaussianSphere{
 		/*flags*/
 		const bool mode_depth_is_ignored = false;
 		const bool mode_floor_is_used = true;
+		bool mode_pcl_viewer_on = false;
 	public:
 		DGaussianSphere();
 		void CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg);
@@ -69,6 +70,7 @@ DGaussianSphere::DGaussianSphere()
 	viewer.addCoordinateSystem(0.8, "axis");
 	// viewer.setCameraPosition(0.0, 0.0, 50.0, 0.0, 0.0, 0.0);
 	viewer.setCameraPosition(-30.0, 0.0, 10.0, 0.0, 0.0, 1.0);
+	if(!mode_pcl_viewer_on)	viewer.close();
 
 	/*test*/
 	g_vector.x = 0.0;
@@ -96,7 +98,7 @@ void DGaussianSphere::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 	if(d_gaussian_sphere->points.size()>limited_num_points)	DecimatePoints(limited_num_points);
 	ClusterDGauss();
 	Publication();
-	Visualization();
+	if(mode_pcl_viewer_on)	Visualization();
 	
 	std::cout << "time for CallbackPC[s] = " << ros::Time::now().toSec() - t_start_callback_pc << std::endl;
 }
