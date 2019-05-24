@@ -13,6 +13,7 @@
 
 class WallEKFSLAM{
 	private:
+		/*node handle*/
 		ros::NodeHandle nh;
 		/*subscribe*/
 		ros::Subscriber sub_inipose;
@@ -32,6 +33,7 @@ class WallEKFSLAM{
 		struct WallInfo{
 			bool is_inward;
 			int count_match;
+			bool probable;
 		};
 		/*objects*/
 		Eigen::VectorXd X;
@@ -64,8 +66,7 @@ class WallEKFSLAM{
 		int SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::VectorXd& Hi, Eigen::MatrixXd& jHi, Eigen::VectorXd& Yi, Eigen::MatrixXd& Si);
 		void PushBackWallInfo(const Eigen::Vector3d& Ng);
 		bool CheckNormalIsInward(const Eigen::Vector3d& Ng);
-		void VectorVStack(Eigen::VectorXd& A, const Eigen::VectorXd& B);
-		void MatrixVStack(Eigen::MatrixXd& A, const Eigen::MatrixXd& B);
+		void JudgeWallsCanBeObserbed(void);
 		void ObservationUpdate(const Eigen::VectorXd& Z, const Eigen::VectorXd& H, const Eigen::MatrixXd& jH);
 		Eigen::Vector3d PlaneGlobalToLocal(const Eigen::Vector3d& Ng);
 		Eigen::Vector3d PlaneLocalToGlobal(const Eigen::Vector3d& Nl);
@@ -74,6 +75,8 @@ class WallEKFSLAM{
 		geometry_msgs::PoseStamped StateVectorToPoseStamped(void);
 		pcl::PointCloud<pcl::PointXYZ> StateVectorToPC(void);
 		Eigen::Matrix3d GetRotationXYZMatrix(const Eigen::Vector3d& RPY, bool inverse);
+		void VectorVStack(Eigen::VectorXd& A, const Eigen::VectorXd& B);
+		void MatrixVStack(Eigen::MatrixXd& A, const Eigen::MatrixXd& B);
 		double PiToPi(double angle);
 };
 
@@ -314,6 +317,8 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 
 	matching_lines.points.clear();
 
+	JudgeWallsCanBeObserbed();
+
 	for(size_t i=0;i<d_gaussian_sphere->points.size();i++){
 		Eigen::Vector3d Zi(
 			d_gaussian_sphere->points[i].x,
@@ -381,76 +386,78 @@ int WallEKFSLAM::SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::Vector
 	double min_euclidean_dist = threshold_euclidean_dist;	//test
 	int correspond_id = -1;
 	for(int i=0;i<num_wall;i++){
-		Eigen::Vector3d N = X.segment(size_robot_state + i*size_wall_state, size_wall_state);
-		Eigen::Vector3d RPY = X.segment(3, 3);
-		double d2 = N.dot(N);
-		/*H*/
-		Eigen::Vector3d H = PlaneGlobalToLocal(N);
-		/*jH*/
-		Eigen::MatrixXd jH = Eigen::MatrixXd::Zero(Zi.size(), X.size());
-		/*dH/d(XYZ)*/
-		Eigen::Vector3d rotN = GetRotationXYZMatrix(RPY, true)*N;
-		for(int j=0;j<Zi.size();j++){
-			for(int k=0;k<3;k++)	jH(j, k) = -N(k)/d2*rotN(j);
-		}
-		/*dH/d(RPY)*/
-		Eigen::Vector3d delN = N - N.dot(X.segment(0, 3))/d2*N;
-		jH(0, 3) = 0;
-		jH(0, 4) = (-sin(RPY(1))*cos(RPY(2)))*delN(0) + (-sin(RPY(1))*sin(RPY(2)))*delN(1) + (-cos(RPY(1)))*delN(2);
-		jH(0, 5) = (-cos(RPY(1))*sin(RPY(2)))*delN(0) + (cos(RPY(1))*cos(RPY(2)))*delN(1);
-		jH(1, 3) = (cos(RPY(0))*sin(RPY(1))*cos(RPY(2)) + sin(RPY(0))*sin(RPY(2)))*delN(0) + (cos(RPY(0))*sin(RPY(1))*sin(RPY(2)) - sin(RPY(0))*cos(RPY(2)))*delN(1) + (cos(RPY(0))*cos(RPY(1)))*delN(2);
-		jH(1, 4) = (sin(RPY(0))*cos(RPY(1))*cos(RPY(2)))*delN(0) + (sin(RPY(0))*cos(RPY(1))*sin(RPY(2)))*delN(1) + (-sin(RPY(0))*sin(RPY(1)))*delN(2);
-		jH(1, 5) = (-sin(RPY(0))*sin(RPY(1))*sin(RPY(2)) - cos(RPY(0))*cos(RPY(2)))*delN(0) + (sin(RPY(0))*sin(RPY(1))*cos(RPY(2)) - cos(RPY(0))*sin(RPY(2)))*delN(1);
-		jH(2, 3) = (-sin(RPY(0))*sin(RPY(1))*cos(RPY(2)) + cos(RPY(0))*sin(RPY(2)))*delN(0) + (-sin(RPY(0))*sin(RPY(1))*sin(RPY(2)) - cos(RPY(0))*cos(RPY(2)))*delN(1) + (-sin(RPY(0))*cos(RPY(1)))*delN(2);
-		jH(2, 4) = (cos(RPY(0))*cos(RPY(1))*cos(RPY(2)))*delN(0) + (cos(RPY(0))*cos(RPY(1))*sin(RPY(2)))*delN(1) + (-cos(RPY(0))*sin(RPY(1)))*delN(2);
-		jH(2, 5) = (-cos(RPY(0))*sin(RPY(1))*sin(RPY(2)) + sin(RPY(0))*cos(RPY(2)))*delN(0) + (cos(RPY(0))*sin(RPY(1))*cos(RPY(2)) + sin(RPY(0))*sin(RPY(2)))*delN(1);
-		/*dH/d(Wall)*/
-		Eigen::Matrix3d Tmp;
-		for(int j=0;j<Zi.size();j++){
-			for(int k=0;k<size_wall_state;k++){
-				if(j==k)	Tmp(j, k) = 1 - ((N.dot(X.segment(0, 3)) + N(j)*X(k))/d2 - N(j)*N.dot(X.segment(0, 3))/(d2*d2)*2*N(k));
-				else	Tmp(j, k) = -(N(j)*X(k)/d2 - N(j)*N.dot(X.segment(0, 3))/(d2*d2)*2*N(k));
+		if(list_wall_info[i].probable){
+			Eigen::Vector3d Ng = X.segment(size_robot_state + i*size_wall_state, size_wall_state);
+			Eigen::Vector3d RPY = X.segment(3, 3);
+			double d2 = Ng.dot(Ng);
+			/*H*/
+			Eigen::Vector3d H = PlaneGlobalToLocal(Ng);
+			/*jH*/
+			Eigen::MatrixXd jH = Eigen::MatrixXd::Zero(Zi.size(), X.size());
+			/*dH/d(XYZ)*/
+			Eigen::Vector3d rotN = GetRotationXYZMatrix(RPY, true)*Ng;
+			for(int j=0;j<Zi.size();j++){
+				for(int k=0;k<3;k++)	jH(j, k) = -Ng(k)/d2*rotN(j);
 			}
-		}
-		jH.block(0, size_robot_state + i*size_wall_state, Zi.size(), size_wall_state) = GetRotationXYZMatrix(RPY, true)*Tmp;
-		/*R*/
-		const double sigma = 1.0e-2;
-		Eigen::MatrixXd R = sigma*Eigen::MatrixXd::Identity(Zi.size(), Zi.size());
-		/*Y, S*/
-		Eigen::VectorXd Y = Zi - H;
-		Eigen::MatrixXd S = jH*P*jH.transpose() + R;
+			/*dH/d(RPY)*/
+			Eigen::Vector3d delN = Ng - Ng.dot(X.segment(0, 3))/d2*Ng;
+			jH(0, 3) = 0;
+			jH(0, 4) = (-sin(RPY(1))*cos(RPY(2)))*delN(0) + (-sin(RPY(1))*sin(RPY(2)))*delN(1) + (-cos(RPY(1)))*delN(2);
+			jH(0, 5) = (-cos(RPY(1))*sin(RPY(2)))*delN(0) + (cos(RPY(1))*cos(RPY(2)))*delN(1);
+			jH(1, 3) = (cos(RPY(0))*sin(RPY(1))*cos(RPY(2)) + sin(RPY(0))*sin(RPY(2)))*delN(0) + (cos(RPY(0))*sin(RPY(1))*sin(RPY(2)) - sin(RPY(0))*cos(RPY(2)))*delN(1) + (cos(RPY(0))*cos(RPY(1)))*delN(2);
+			jH(1, 4) = (sin(RPY(0))*cos(RPY(1))*cos(RPY(2)))*delN(0) + (sin(RPY(0))*cos(RPY(1))*sin(RPY(2)))*delN(1) + (-sin(RPY(0))*sin(RPY(1)))*delN(2);
+			jH(1, 5) = (-sin(RPY(0))*sin(RPY(1))*sin(RPY(2)) - cos(RPY(0))*cos(RPY(2)))*delN(0) + (sin(RPY(0))*sin(RPY(1))*cos(RPY(2)) - cos(RPY(0))*sin(RPY(2)))*delN(1);
+			jH(2, 3) = (-sin(RPY(0))*sin(RPY(1))*cos(RPY(2)) + cos(RPY(0))*sin(RPY(2)))*delN(0) + (-sin(RPY(0))*sin(RPY(1))*sin(RPY(2)) - cos(RPY(0))*cos(RPY(2)))*delN(1) + (-sin(RPY(0))*cos(RPY(1)))*delN(2);
+			jH(2, 4) = (cos(RPY(0))*cos(RPY(1))*cos(RPY(2)))*delN(0) + (cos(RPY(0))*cos(RPY(1))*sin(RPY(2)))*delN(1) + (-cos(RPY(0))*sin(RPY(1)))*delN(2);
+			jH(2, 5) = (-cos(RPY(0))*sin(RPY(1))*sin(RPY(2)) + sin(RPY(0))*cos(RPY(2)))*delN(0) + (cos(RPY(0))*sin(RPY(1))*cos(RPY(2)) + sin(RPY(0))*sin(RPY(2)))*delN(1);
+			/*dH/d(Wall)*/
+			Eigen::Matrix3d Tmp;
+			for(int j=0;j<Zi.size();j++){
+				for(int k=0;k<size_wall_state;k++){
+					if(j==k)	Tmp(j, k) = 1 - ((Ng.dot(X.segment(0, 3)) + Ng(j)*X(k))/d2 - Ng(j)*Ng.dot(X.segment(0, 3))/(d2*d2)*2*Ng(k));
+					else	Tmp(j, k) = -(Ng(j)*X(k)/d2 - Ng(j)*Ng.dot(X.segment(0, 3))/(d2*d2)*2*Ng(k));
+				}
+			}
+			jH.block(0, size_robot_state + i*size_wall_state, Zi.size(), size_wall_state) = GetRotationXYZMatrix(RPY, true)*Tmp;
+			/*R*/
+			const double sigma = 1.0e-2;
+			Eigen::MatrixXd R = sigma*Eigen::MatrixXd::Identity(Zi.size(), Zi.size());
+			/*Y, S*/
+			Eigen::VectorXd Y = Zi - H;
+			Eigen::MatrixXd S = jH*P*jH.transpose() + R;
 
-		double mahalanobis_dist = Y.transpose()*S.inverse()*Y;
-		double euclidean_dist = Y.norm();	//test
-		/* std::cout << "mahalanobis_dist = " << mahalanobis_dist << std::endl; */
-		/* std::cout << "H = " << H << std::endl; */
-		// std::cout << "euclidean_dist = " << euclidean_dist << std::endl;
-		if(std::isnan(mahalanobis_dist)){	//test
-			/* std::cout << "mahalanobis_dist is NAN" << std::endl; */
-			/* std::cout << "X =" << std::endl << X << std::endl; */
-			/* std::cout << "P =" << std::endl << P << std::endl; */
+			double mahalanobis_dist = Y.transpose()*S.inverse()*Y;
+			double euclidean_dist = Y.norm();	//test
+			/* std::cout << "mahalanobis_dist = " << mahalanobis_dist << std::endl; */
+			/* std::cout << "H = " << H << std::endl; */
+			// std::cout << "euclidean_dist = " << euclidean_dist << std::endl;
+			if(std::isnan(mahalanobis_dist)){	//test
+				/* std::cout << "mahalanobis_dist is NAN" << std::endl; */
+				/* std::cout << "X =" << std::endl << X << std::endl; */
+				/* std::cout << "P =" << std::endl << P << std::endl; */
+				/* std::cout << "jH =" << std::endl << jH << std::endl; */
+				/* std::cout << "S =" << std::endl << S << std::endl; */
+				/* std::cout << "S.inverse() =" << std::endl << S.inverse() << std::endl; */
+				/* std::cout << "Y =" << std::endl << Y << std::endl; */
+				// exit(1);
+			}
+			if(euclidean_dist<min_euclidean_dist && list_wall_info[i].is_inward==CheckNormalIsInward(X.segment(size_robot_state+i*size_wall_state, size_wall_state))){	//test
+				min_euclidean_dist = euclidean_dist;
+				correspond_id = i;
+				Hi = H;
+				jHi = jH;
+				Yi = Y;
+				Si = S;
+			}
+			// if(!std::isnan(mahalanobis_dist) && mahalanobis_dist<min_mahalanobis_dist){
+			// 	min_mahalanobis_dist = mahalanobis_dist;
+			// 	correspond_id = i;
+			// 	jHi = jH;
+			// 	Yi = Y;
+			// 	Si = S;
+			// }
 			/* std::cout << "jH =" << std::endl << jH << std::endl; */
-			/* std::cout << "S =" << std::endl << S << std::endl; */
-			/* std::cout << "S.inverse() =" << std::endl << S.inverse() << std::endl; */
-			/* std::cout << "Y =" << std::endl << Y << std::endl; */
-			// exit(1);
 		}
-		if(euclidean_dist<min_euclidean_dist && list_wall_info[i].is_inward==CheckNormalIsInward(X.segment(size_robot_state+i*size_wall_state, size_wall_state))){	//test
-			min_euclidean_dist = euclidean_dist;
-			correspond_id = i;
-			Hi = H;
-			jHi = jH;
-			Yi = Y;
-			Si = S;
-		}
-		// if(!std::isnan(mahalanobis_dist) && mahalanobis_dist<min_mahalanobis_dist){
-		// 	min_mahalanobis_dist = mahalanobis_dist;
-		// 	correspond_id = i;
-		// 	jHi = jH;
-		// 	Yi = Y;
-		// 	Si = S;
-		// }
-		/* std::cout << "jH =" << std::endl << jH << std::endl; */
 	}
 
 	return correspond_id;
@@ -473,16 +480,14 @@ bool WallEKFSLAM::CheckNormalIsInward(const Eigen::Vector3d& Ng)
 	else	return false;
 }
 
-void WallEKFSLAM::VectorVStack(Eigen::VectorXd& A, const Eigen::VectorXd& B)
+void WallEKFSLAM::JudgeWallsCanBeObserbed(void)
 {
-	A.conservativeResize(A.rows() + B.rows());
-	A.segment(A.size() - B.size(), B.size()) = B;
-}
-
-void WallEKFSLAM::MatrixVStack(Eigen::MatrixXd& A, const Eigen::MatrixXd& B)
-{
-	A.conservativeResize(A.rows() + B.rows(), B.cols());
-	A.block(A.rows() - B.rows(), 0, B.rows(), B.cols()) = B;
+	int num_wall = (X.size() - size_robot_state)/size_wall_state;
+	for(int i=0;i<num_wall;i++){
+		Eigen::Vector3d Ng = X.segment(size_robot_state+i*size_wall_state, size_wall_state);
+		if(list_wall_info[i].is_inward!=CheckNormalIsInward(Ng))	list_wall_info[i].probable = false;
+		else	list_wall_info[i].probable = true;
+	}
 }
 
 void WallEKFSLAM::ObservationUpdate(const Eigen::VectorXd& Z, const Eigen::VectorXd& H, const Eigen::MatrixXd& jH)
@@ -583,11 +588,13 @@ pcl::PointCloud<pcl::PointXYZ> WallEKFSLAM::StateVectorToPC(void)
 	pcl::PointCloud<pcl::PointXYZ>::Ptr pc (new pcl::PointCloud<pcl::PointXYZ>);
 	int num_wall = (X.size() - size_robot_state)/size_wall_state;
 	for(int i=0;i<num_wall;i++){
-		pcl::PointXYZ tmp;
-		tmp.x = X(size_robot_state + i*size_wall_state);
-		tmp.y = X(size_robot_state + i*size_wall_state + 1);
-		tmp.z = X(size_robot_state + i*size_wall_state + 2);
-		pc->points.push_back(tmp);
+		if(list_wall_info[i].probable){
+			pcl::PointXYZ tmp;
+			tmp.x = X(size_robot_state + i*size_wall_state);
+			tmp.y = X(size_robot_state + i*size_wall_state + 1);
+			tmp.z = X(size_robot_state + i*size_wall_state + 2);
+			pc->points.push_back(tmp);
+		}
 	}
 	return *pc;
 }
@@ -622,6 +629,18 @@ Eigen::Matrix3d WallEKFSLAM::GetRotationXYZMatrix(const Eigen::Vector3d& RPY, bo
 
 	if(!inverse)	return Rot_xyz;
 	else	return Rot_xyz_inv;	//=Rot_xyz.transpose()
+}
+
+void WallEKFSLAM::VectorVStack(Eigen::VectorXd& A, const Eigen::VectorXd& B)
+{
+	A.conservativeResize(A.rows() + B.rows());
+	A.segment(A.size() - B.size(), B.size()) = B;
+}
+
+void WallEKFSLAM::MatrixVStack(Eigen::MatrixXd& A, const Eigen::MatrixXd& B)
+{
+	A.conservativeResize(A.rows() + B.rows(), B.cols());
+	A.block(A.rows() - B.rows(), 0, B.rows(), B.cols()) = B;
 }
 
 double WallEKFSLAM::PiToPi(double angle)
