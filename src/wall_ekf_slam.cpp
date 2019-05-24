@@ -106,7 +106,7 @@ void WallEKFSLAM::SetUpVisualizationMarker(visualization_msgs::Marker& marker)
 	marker.pose.orientation.z = 0.0;
 	marker.pose.orientation.w = 1.0;
 	marker.type = visualization_msgs::Marker::LINE_LIST;
-	marker.scale.x = 0.1;
+	marker.scale.x = 0.2;
 	marker.color.r = 0.0;
 	marker.color.g = 0.0;
 	marker.color.b = 1.0;
