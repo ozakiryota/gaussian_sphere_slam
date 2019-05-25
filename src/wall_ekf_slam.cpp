@@ -33,7 +33,7 @@ class WallEKFSLAM{
 		struct WallInfo{
 			bool is_inward;
 			int count_match;
-			bool probable;
+			bool available;
 		};
 		/*objects*/
 		Eigen::VectorXd X;
@@ -352,10 +352,17 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 			// Eigen::MatrixXd I = Eigen::MatrixXd::Identity(X.size(), X.size());
 			// P = (I - Ki*jHi)*P;
 
-			PushBackMatchingLine(X.segment(size_robot_state + correspond_id*size_wall_state, size_wall_state), GetRotationXYZMatrix(X.segment(3, 3), false)*Zi + X.segment(0, 3));
-			VectorVStack(Zstacked, Zi);
-			VectorVStack(Hstacked, Hi);
-			MatrixVStack(jHstacked, jHi);
+			list_wall_info[correspond_id].count_match += 1;
+			const int threshold_count_match = 3;
+			if(list_wall_info[correspond_id].count_match>threshold_count_match)	list_wall_info[correspond_id].available = true;
+			else	list_wall_info[correspond_id].available = false;
+
+			if(list_wall_info[correspond_id].available){
+				PushBackMatchingLine(X.segment(size_robot_state + correspond_id*size_wall_state, size_wall_state), GetRotationXYZMatrix(X.segment(3, 3), false)*Zi + X.segment(0, 3));
+				VectorVStack(Zstacked, Zi);
+				VectorVStack(Hstacked, Hi);
+				MatrixVStack(jHstacked, jHi);
+			}
 
 			// std::cout << "correspond_id =" << correspond_id << std::endl;
 			// std::cout << "Yi =" << std::endl << Yi << std::endl;
@@ -386,7 +393,7 @@ int WallEKFSLAM::SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::Vector
 	double min_euclidean_dist = threshold_euclidean_dist;	//test
 	int correspond_id = -1;
 	for(int i=0;i<num_wall;i++){
-		if(list_wall_info[i].probable){
+		if(list_wall_info[i].available){
 			Eigen::Vector3d Ng = X.segment(size_robot_state + i*size_wall_state, size_wall_state);
 			Eigen::Vector3d RPY = X.segment(3, 3);
 			double d2 = Ng.dot(Ng);
@@ -485,8 +492,8 @@ void WallEKFSLAM::JudgeWallsCanBeObserbed(void)
 	int num_wall = (X.size() - size_robot_state)/size_wall_state;
 	for(int i=0;i<num_wall;i++){
 		Eigen::Vector3d Ng = X.segment(size_robot_state+i*size_wall_state, size_wall_state);
-		if(list_wall_info[i].is_inward!=CheckNormalIsInward(Ng))	list_wall_info[i].probable = false;
-		else	list_wall_info[i].probable = true;
+		if(list_wall_info[i].is_inward!=CheckNormalIsInward(Ng))	list_wall_info[i].available = false;
+		else	list_wall_info[i].available = true;
 	}
 }
 
@@ -588,7 +595,7 @@ pcl::PointCloud<pcl::PointXYZ> WallEKFSLAM::StateVectorToPC(void)
 	pcl::PointCloud<pcl::PointXYZ>::Ptr pc (new pcl::PointCloud<pcl::PointXYZ>);
 	int num_wall = (X.size() - size_robot_state)/size_wall_state;
 	for(int i=0;i<num_wall;i++){
-		if(list_wall_info[i].probable){
+		if(list_wall_info[i].available){
 			pcl::PointXYZ tmp;
 			tmp.x = X(size_robot_state + i*size_wall_state);
 			tmp.y = X(size_robot_state + i*size_wall_state + 1);
