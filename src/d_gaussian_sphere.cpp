@@ -36,7 +36,7 @@ class DGaussianSphere{
 		/*flags*/
 		const bool mode_depth_is_ignored = false;
 		const bool mode_floor_is_used = true;
-		bool mode_pcl_viewer_on = true;
+		bool mode_pcl_viewer_on = false;
 	public:
 		DGaussianSphere();
 		void CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg);
