@@ -40,7 +40,7 @@ class WallEKFSLAM{
 		Eigen::VectorXd X;
 		Eigen::MatrixXd P;
 		sensor_msgs::Imu bias;
-		pcl::PointCloud<pcl::PointXYZ>::Ptr d_gaussian_sphere {new pcl::PointCloud<pcl::PointXYZ>};
+		pcl::PointCloud<pcl::InterestPoint>::Ptr d_gaussian_sphere {new pcl::PointCloud<pcl::InterestPoint>};
 		std::vector<WallInfo> list_wall_info;
 		/*flags*/
 		bool inipose_is_available = false;
@@ -310,6 +310,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 	
 	pcl::fromROSMsg(*msg, *d_gaussian_sphere);
 	std::cout << "d_gaussian_sphere->points.size() = " << d_gaussian_sphere->points.size() << std::endl;
+	for(size_t i=0;i<d_gaussian_sphere->points.size();i++)	std::cout << "d_gaussian_sphere->points[" << i << "].strength = " << d_gaussian_sphere->points[i].strength << std::endl;
 	Eigen::VectorXd Xnew(0);
 
 	Eigen::VectorXd Zstacked(0);

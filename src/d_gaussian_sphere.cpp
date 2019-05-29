@@ -29,7 +29,7 @@ class DGaussianSphere{
 		pcl::PointCloud<pcl::PointNormal>::Ptr normals {new pcl::PointCloud<pcl::PointNormal>};
 		pcl::PointCloud<pcl::PointNormal>::Ptr normals_extracted {new pcl::PointCloud<pcl::PointNormal>};
 		pcl::PointCloud<pcl::PointXYZ>::Ptr d_gaussian_sphere {new pcl::PointCloud<pcl::PointXYZ>};
-		pcl::PointCloud<pcl::PointXYZ>::Ptr d_gaussian_sphere_clustered {new pcl::PointCloud<pcl::PointXYZ>};
+		pcl::PointCloud<pcl::InterestPoint>::Ptr d_gaussian_sphere_clustered {new pcl::PointCloud<pcl::InterestPoint>};
 		pcl::PointCloud<pcl::PointNormal>::Ptr d_gaussian_sphere_clustered_n {new pcl::PointCloud<pcl::PointNormal>};
 		/*objects*/
 		ros::Time time_pub;
@@ -307,10 +307,11 @@ void DGaussianSphere::ClusterDGauss(void)
 		Eigen::Vector4f xyz_centroid;
 		pcl::compute3DCentroid(*tmp_clustered_points, xyz_centroid);
 		/*input*/
-		pcl::PointXYZ tmp_centroid;
+		pcl::InterestPoint tmp_centroid;
 		tmp_centroid.x = xyz_centroid[0];
 		tmp_centroid.y = xyz_centroid[1];
 		tmp_centroid.z = xyz_centroid[2];
+		tmp_centroid.strength = tmp_clustered_indices->indices.size();
 		d_gaussian_sphere_clustered->points.push_back(tmp_centroid);
 		/*for Visualization*/
 		pcl::PointNormal tmp_centroid_n;
