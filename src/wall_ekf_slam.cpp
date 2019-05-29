@@ -34,6 +34,7 @@ class WallEKFSLAM{
 			bool is_inward;
 			int count_match;
 			double observable_area[3][2];	//[x, y, z][min, max]
+			double unobservable_area[3][2];	//[x, y, z][min, max]
 			bool available;
 		};
 		/*objects*/
