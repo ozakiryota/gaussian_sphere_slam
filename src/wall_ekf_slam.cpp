@@ -4,6 +4,7 @@
 #include <nav_msgs/Odometry.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/PoseArray.h>
 #include <visualization_msgs/Marker.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <tf/tf.h>
@@ -26,11 +27,13 @@ class WallEKFSLAM{
 		ros::Publisher pub_pose;
 		ros::Publisher pub_dgaussiansphere_est;
 		ros::Publisher pub_marker;
+		ros::Publisher pub_posearray;
 		/*const*/
 		const int size_robot_state = 6;	//X, Y, Z, R, P, Y (Global)
 		const int size_wall_state = 3;	//x, y, z (Local)
 		/*struct*/
 		struct WallInfo{
+			geometry_msgs::Pose origin;
 			bool is_inward;
 			int count_match;
 			double observable_area[3][2];	//[x, y, z][min, max]
@@ -66,12 +69,13 @@ class WallEKFSLAM{
 		void PredictionOdom(nav_msgs::Odometry odom, double dt);
 		void CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr &msg);
 		int SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::VectorXd& Hi, Eigen::MatrixXd& jHi, Eigen::VectorXd& Yi, Eigen::MatrixXd& Si);
-		void PushBackWallInfo(const Eigen::Vector3d& Ng);
+		void PushBackWallInfo(const Eigen::Vector3d& Nl);
 		bool CheckNormalIsInward(const Eigen::Vector3d& Ng);
 		void JudgeWallsCanBeObserbed(void);
 		void ObservationUpdate(const Eigen::VectorXd& Z, const Eigen::VectorXd& H, const Eigen::MatrixXd& jH);
 		Eigen::Vector3d PlaneGlobalToLocal(const Eigen::Vector3d& Ng);
 		Eigen::Vector3d PlaneLocalToGlobal(const Eigen::Vector3d& Nl);
+		Eigen::Vector3d PointLocalToGlobal(const Eigen::Vector3d& Pl);
 		void PushBackMatchingLine(const Eigen::Vector3d& P1, const Eigen::Vector3d& P2);	//visualization
 		void Publication();
 		geometry_msgs::PoseStamped StateVectorToPoseStamped(void);
@@ -90,6 +94,7 @@ WallEKFSLAM::WallEKFSLAM()
 	sub_odom = nh.subscribe("/tinypower/odom", 1, &WallEKFSLAM::CallbackOdom, this);
 	sub_dgaussiansphere_obs = nh.subscribe("/d_gaussian_sphere_obs", 1, &WallEKFSLAM::CallbackDGaussianSphere, this);
 	pub_pose = nh.advertise<geometry_msgs::PoseStamped>("/pose_wall_ekf_slam", 1);
+	pub_posearray = nh.advertise<geometry_msgs::PoseArray>("/wall_origins", 1);
 	pub_dgaussiansphere_est = nh.advertise<sensor_msgs::PointCloud2>("/d_gaussian_sphere_est", 1);
 	pub_marker = nh.advertise<visualization_msgs::Marker>("matching_lines", 1);
 	X = Eigen::VectorXd::Zero(size_robot_state);
@@ -312,8 +317,8 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 	pcl::fromROSMsg(*msg, *d_gaussian_sphere);
 	std::cout << "d_gaussian_sphere->points.size() = " << d_gaussian_sphere->points.size() << std::endl;
 	for(size_t i=0;i<d_gaussian_sphere->points.size();i++)	std::cout << "d_gaussian_sphere->points[" << i << "].strength = " << d_gaussian_sphere->points[i].strength << std::endl;
-	Eigen::VectorXd Xnew(0);
 
+	Eigen::VectorXd Xnew(0);
 	Eigen::VectorXd Zstacked(0);
 	Eigen::VectorXd Hstacked(0);
 	Eigen::MatrixXd jHstacked(0, 0);
@@ -339,7 +344,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 			// Xnew.conservativeResize(Xnew.size() + size_wall_state);
 			// Xnew.segment(Xnew.size() - size_wall_state, size_wall_state) = PlaneLocalToGlobal(Zi);
 			VectorVStack(Xnew, PlaneLocalToGlobal(Zi));
-			PushBackWallInfo(PlaneLocalToGlobal(Zi));
+			PushBackWallInfo(Zi);
 		}
 		else{
 			// PushBackMatchingLine(X.segment(size_robot_state + correspond_id*size_wall_state, size_wall_state), GetRotationXYZMatrix(X.segment(3, 3), false)*Zi + X.segment(0, 3));
@@ -361,7 +366,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 			else	list_wall_info[correspond_id].available = false;
 
 			if(list_wall_info[correspond_id].available){
-				PushBackMatchingLine(X.segment(size_robot_state + correspond_id*size_wall_state, size_wall_state), GetRotationXYZMatrix(X.segment(3, 3), false)*Zi + X.segment(0, 3));
+				PushBackMatchingLine(X.segment(size_robot_state + correspond_id*size_wall_state, size_wall_state), PointLocalToGlobal(Zi));
 				VectorVStack(Zstacked, Zi);
 				VectorVStack(Hstacked, Hi);
 				MatrixVStack(jHstacked, jHi);
@@ -473,10 +478,18 @@ int WallEKFSLAM::SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::Vector
 	return correspond_id;
 }
 
-void WallEKFSLAM::PushBackWallInfo(const Eigen::Vector3d& Ng)
+void WallEKFSLAM::PushBackWallInfo(const Eigen::Vector3d& Nl)
 {
+	Eigen::Vector3d Pg = PointLocalToGlobal(Nl);
+	double delta_y = acos(Nl.dot(Eigen::Vector3d(1,0,0))/Nl.norm());
+	tf::Quaternion q_orientation = tf::createQuaternionFromRPY(X(0), X(1), PiToPi(X(2)+delta_y));
+
 	WallInfo tmp;
-	tmp.is_inward = CheckNormalIsInward(Ng);
+	tmp.origin.position.x = Pg(0);
+	tmp.origin.position.y = Pg(1);
+	tmp.origin.position.z = Pg(2);
+	quaternionTFToMsg(q_orientation, tmp.origin.orientation);
+	tmp.is_inward = CheckNormalIsInward(PlaneLocalToGlobal(Nl));
 	tmp.count_match = 0;
 	list_wall_info.push_back(tmp);
 }
@@ -529,6 +542,12 @@ Eigen::Vector3d WallEKFSLAM::PlaneLocalToGlobal(const Eigen::Vector3d& Nl)
 	return Ng;
 }
 
+Eigen::Vector3d WallEKFSLAM::PointLocalToGlobal(const Eigen::Vector3d& Pl)
+{
+	Eigen::Vector3d Pg = GetRotationXYZMatrix(X.segment(3, 3), false)*Pl + X.segment(0, 3);
+	return Pg;
+}
+
 void WallEKFSLAM::Publication(void)
 {
 	/* std::cout << "Publication" << std::endl; */
@@ -576,6 +595,13 @@ void WallEKFSLAM::Publication(void)
 	/*visualization marker*/
 	matching_lines.header.stamp = time_imu_now;
 	pub_marker.publish(matching_lines);
+
+	/*wall origins*/
+	geometry_msgs::PoseArray wall_origins;
+	wall_origins.header.frame_id = "/odom";
+	wall_origins.header.stamp = time_imu_now;
+	for(size_t i=0;i<list_wall_info.size();i++)	wall_origins.poses.push_back(list_wall_info[i].origin);
+	pub_posearray.publish(wall_origins);
 }
 
 geometry_msgs::PoseStamped WallEKFSLAM::StateVectorToPoseStamped(void)
