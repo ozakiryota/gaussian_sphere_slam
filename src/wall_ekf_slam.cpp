@@ -482,7 +482,8 @@ void WallEKFSLAM::PushBackWallInfo(const Eigen::Vector3d& Nl)
 {
 	Eigen::Vector3d Pg = PointLocalToGlobal(Nl);
 	double delta_y = acos(Nl.dot(Eigen::Vector3d(1,0,0))/Nl.norm());
-	tf::Quaternion q_orientation = tf::createQuaternionFromRPY(X(0), X(1), PiToPi(X(2)+delta_y));
+	tf::Quaternion q_delta_y = tf::createQuaternionFromRPY(0, 0, delta_y);
+	tf::Quaternion q_orientation = tf::createQuaternionFromRPY(X(0), X(1), X(2))*q_delta_y;
 
 	WallInfo tmp;
 	tmp.origin.position.x = Pg(0);
