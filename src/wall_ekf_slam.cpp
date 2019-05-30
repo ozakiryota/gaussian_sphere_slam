@@ -70,6 +70,7 @@ class WallEKFSLAM{
 		void CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr &msg);
 		int SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::VectorXd& Hi, Eigen::MatrixXd& jHi, Eigen::VectorXd& Yi, Eigen::MatrixXd& Si);
 		void PushBackWallInfo(const Eigen::Vector3d& Nl);
+		tf::Quaternion GetRotationQuaternionBetweenVectors(const Eigen::Vector3d& Origin, const Eigen::Vector3d& Target);
 		bool CheckNormalIsInward(const Eigen::Vector3d& Ng);
 		void JudgeWallsCanBeObserbed(void);
 		void ObservationUpdate(const Eigen::VectorXd& Z, const Eigen::VectorXd& H, const Eigen::MatrixXd& jH);
@@ -481,9 +482,9 @@ int WallEKFSLAM::SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::Vector
 void WallEKFSLAM::PushBackWallInfo(const Eigen::Vector3d& Nl)
 {
 	Eigen::Vector3d Pg = PointLocalToGlobal(Nl);
-	double delta_y = acos((-Nl).dot(Eigen::Vector3d(1,0,0))/Nl.norm());
-	tf::Quaternion q_delta_y = tf::createQuaternionFromRPY(0, 0, delta_y);
-	tf::Quaternion q_orientation = tf::createQuaternionFromRPY(X(3), X(4), X(5))*q_delta_y;
+	/* double delta_y = acos((-Nl).dot(Eigen::Vector3d(1,0,0))/Nl.norm()); */
+	/* tf::Quaternion q_delta_y = tf::createQuaternionFromRPY(0, 0, delta_y); */
+	tf::Quaternion q_orientation = tf::createQuaternionFromRPY(X(3), X(4), X(5))*GetRotationQuaternionBetweenVectors(Eigen::Vector3d(1,0,0), Nl);
 
 	WallInfo tmp;
 	tmp.origin.position.x = Pg(0);
@@ -493,6 +494,17 @@ void WallEKFSLAM::PushBackWallInfo(const Eigen::Vector3d& Nl)
 	tmp.is_inward = CheckNormalIsInward(PlaneLocalToGlobal(Nl));
 	tmp.count_match = 0;
 	list_wall_info.push_back(tmp);
+}
+
+tf::Quaternion WallEKFSLAM::GetRotationQuaternionBetweenVectors(const Eigen::Vector3d& Origin, const Eigen::Vector3d& Target)
+{
+	double theta = acos(Origin.dot(Target)/Origin.norm()/Target.norm());
+	Eigen::Vector3d Axis = Origin.cross(Target);
+	Axis.normalize();
+	tf::Quaternion q_rotation(sin(theta/2.0)*Axis(0), sin(theta/2.0)*Axis(1), sin(theta/2.0)*Axis(2), cos(theta/2.0));
+	q_rotation.normalize();
+
+	return q_rotation;
 }
 
 bool WallEKFSLAM::CheckNormalIsInward(const Eigen::Vector3d& Ng)
