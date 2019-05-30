@@ -84,6 +84,7 @@ class WallEKFSLAM{
 		Eigen::Matrix3d GetRotationXYZMatrix(const Eigen::Vector3d& RPY, bool inverse);
 		void VectorVStack(Eigen::VectorXd& A, const Eigen::VectorXd& B);
 		void MatrixVStack(Eigen::MatrixXd& A, const Eigen::MatrixXd& B);
+		geometry_msgs::Quaternion QuatEigenToMsg(Eigen::Quaterniond q_eigen);
 		double PiToPi(double angle);
 };
 
@@ -484,27 +485,24 @@ void WallEKFSLAM::PushBackWallInfo(const Eigen::Vector3d& Nl)
 	Eigen::Vector3d Pg = PointLocalToGlobal(Nl);
 	/* double delta_y = acos((-Nl).dot(Eigen::Vector3d(1,0,0))/Nl.norm()); */
 	/* tf::Quaternion q_delta_y = tf::createQuaternionFromRPY(0, 0, delta_y); */
-	tf::Quaternion q_orientation = tf::createQuaternionFromRPY(X(3), X(4), X(5))*GetRotationQuaternionBetweenVectors(Eigen::Vector3d(1,0,0), Nl);
+	/* tf::Quaternion q_orientation = tf::createQuaternionFromRPY(X(3), X(4), X(5))*GetRotationQuaternionBetweenVectors(Eigen::Vector3d(1,0,0), -Nl); */
+	Eigen::Matrix3d Rot_robot = GetRotationXYZMatrix(X.segment(3, 3), false);
+	Eigen::Matrix3d Rot_wall;
+	for(int i=0;i<3;i++){
+		Eigen::Vector3d Col_robot = Rot_robot.block(0,i,3,1);
+		Eigen::Vector3d Col_wall = Col_robot - Col_robot.dot(Pg)/Pg.dot(Pg)*Pg;
+		Rot_wall.block(0, i, 3, 1) = Col_robot.normalized();
+	}
+	Eigen::Quaterniond q_orientation(Rot_wall);
 
 	WallInfo tmp;
 	tmp.origin.position.x = Pg(0);
 	tmp.origin.position.y = Pg(1);
 	tmp.origin.position.z = Pg(2);
-	quaternionTFToMsg(q_orientation, tmp.origin.orientation);
+	tmp.origin.orientation = QuatEigenToMsg(q_orientation);
 	tmp.is_inward = CheckNormalIsInward(PlaneLocalToGlobal(Nl));
 	tmp.count_match = 0;
 	list_wall_info.push_back(tmp);
-}
-
-tf::Quaternion WallEKFSLAM::GetRotationQuaternionBetweenVectors(const Eigen::Vector3d& Origin, const Eigen::Vector3d& Target)
-{
-	double theta = acos(Origin.dot(Target)/Origin.norm()/Target.norm());
-	Eigen::Vector3d Axis = Origin.cross(Target);
-	Axis.normalize();
-	tf::Quaternion q_rotation(sin(theta/2.0)*Axis(0), sin(theta/2.0)*Axis(1), sin(theta/2.0)*Axis(2), cos(theta/2.0));
-	q_rotation.normalize();
-
-	return q_rotation;
 }
 
 bool WallEKFSLAM::CheckNormalIsInward(const Eigen::Vector3d& Ng)
@@ -690,6 +688,16 @@ void WallEKFSLAM::MatrixVStack(Eigen::MatrixXd& A, const Eigen::MatrixXd& B)
 {
 	A.conservativeResize(A.rows() + B.rows(), B.cols());
 	A.block(A.rows() - B.rows(), 0, B.rows(), B.cols()) = B;
+}
+
+geometry_msgs::Quaternion WallEKFSLAM::QuatEigenToMsg(Eigen::Quaterniond q_eigen)
+{
+	geometry_msgs::Quaternion q_msg;
+	q_msg.x = (double)q_eigen.x();
+	q_msg.y = (double)q_eigen.y();
+	q_msg.z = (double)q_eigen.z();
+	q_msg.w = (double)q_eigen.w();
+	return q_msg;
 }
 
 double WallEKFSLAM::PiToPi(double angle)
