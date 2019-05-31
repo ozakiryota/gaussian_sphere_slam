@@ -34,10 +34,12 @@ class WallEKFSLAM{
 		/*struct*/
 		struct WallInfo{
 			geometry_msgs::Pose origin;
+			bool is_observed_in_this_scan;
 			bool is_inward;
 			int count_match;
-			double observable_area[3][2] = {};	//[x, y, z][min, max] in wall frame
-			double unobservable_area[3][2];	//[x, y, z][min, max] in wall frame
+			double observed_range[3][2] = {};	//[x, y, z][min, max] in wall frame
+			/* double unobservable_area[3][2];	//[x, y, z][min, max] in wall frame */
+			bool reached_edge[3][2];	//[x, y, z][negative, positive] in wall frame
 			bool available;
 		};
 		/*objects*/
@@ -336,49 +338,51 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 			d_gaussian_sphere->points[i].y,
 			d_gaussian_sphere->points[i].z
 		);
-		/* std::cout << "Zi =" << std::endl << Zi << std::endl; */
 		Eigen::VectorXd Hi;
 		Eigen::MatrixXd jHi;
 		Eigen::VectorXd Yi;
 		Eigen::MatrixXd Si;
 		int correspond_id = SearchCorrespondWallID(Zi, Hi, jHi, Yi, Si);
-		/* correspond_id = -1;	//test */
 		if(correspond_id==-1){
-			// Xnew.conservativeResize(Xnew.size() + size_wall_state);
-			// Xnew.segment(Xnew.size() - size_wall_state, size_wall_state) = PlaneLocalToGlobal(Zi);
 			VectorVStack(Xnew, PlaneLocalToGlobal(Zi));
 			PushBackWallInfo(Zi);
 		}
 		else{
-			// PushBackMatchingLine(X.segment(size_robot_state + correspond_id*size_wall_state, size_wall_state), GetRotationXYZMatrix(X.segment(3, 3), false)*Zi + X.segment(0, 3));
-
-			// std::cout << "P =" << std::endl << P << std::endl;
-			// std::cout << "jHi =" << std::endl << jHi << std::endl;
-			// std::cout << "Si =" << std::endl << Si << std::endl;
-			// std::cout << "Si.inverse() =" << std::endl << Si.inverse() << std::endl;
-
-			// Eigen::MatrixXd Ki = P*jHi.transpose()*Si.inverse();
-			// X = X + Ki*Yi;
-			// for(int i=3;i<6;i++)	X(i) = PiToPi(X(i));
-			// Eigen::MatrixXd I = Eigen::MatrixXd::Identity(X.size(), X.size());
-			// P = (I - Ki*jHi)*P;
-
+			/*update wall info*/
+			Eigen::Vector3d Position_in_wall_frame = PointGlobalToWallFrame(X.segment(0, 3), list_wall_info[correspond_id].origin);
+			list_wall_info[correspond_id].is_observed_in_this_scan = true;
 			list_wall_info[correspond_id].count_match += 1;
+			for(int j=0;j<3;j++){
+				if(Position_in_wall_frame(j) < list_wall_info[correspond_id].observed_range[j][0])	list_wall_info[correspond_id].observed_range[j][0] = Position_in_wall_frame(j);
+				if(Position_in_wall_frame(j) > list_wall_info[correspond_id].observed_range[j][1])	list_wall_info[correspond_id].observed_range[j][1] = Position_in_wall_frame(j);
+			}
+
+			/*judge*/
 			const int threshold_count_match = 3;
 			if(list_wall_info[correspond_id].count_match>threshold_count_match)	list_wall_info[correspond_id].available = true;
 			else	list_wall_info[correspond_id].available = false;
-
+			/*stack*/
 			if(list_wall_info[correspond_id].available){
 				PushBackMatchingLine(X.segment(size_robot_state + correspond_id*size_wall_state, size_wall_state), PointLocalToGlobal(Zi));
 				VectorVStack(Zstacked, Zi);
 				VectorVStack(Hstacked, Hi);
 				MatrixVStack(jHstacked, jHi);
 			}
-
-			// std::cout << "correspond_id =" << correspond_id << std::endl;
-			// std::cout << "Yi =" << std::endl << Yi << std::endl;
-			// std::cout << "Ki*Yi =" << std::endl << Ki*Yi << std::endl;
 		}
+	}
+	/*update wall info*/
+	const double tolerance = 5.0;
+	int num_wall = (X.size() - size_robot_state)/size_wall_state;
+	for(int i=0;i<num_wall;i++){
+		Eigen::Vector3d Position_in_wall_frame = PointGlobalToWallFrame(X.segment(0, 3), list_wall_info[i].origin);
+		if(!list_wall_info[i].is_observed_in_this_scan && Position_in_wall_frame(0)<list_wall_info[i].observed_range[0][1]){
+			for(int j=1;j<3;j++){
+				if(Position_in_wall_frame(j) < list_wall_info[j].observed_range[j][0]-tolerance)	list_wall_info[i].reached_edge[j][0] = true;
+				if(Position_in_wall_frame(j) > list_wall_info[j].observed_range[j][1]+tolerance)	list_wall_info[i].reached_edge[j][1] = true;
+			}
+		}
+		/*reset*/
+		list_wall_info[i].is_observed_in_this_scan = false;
 	}
 	/*update*/
 	if(Zstacked.size()>0)	ObservationUpdate(Zstacked, Hstacked, jHstacked);
@@ -506,14 +510,19 @@ void WallEKFSLAM::PushBackWallInfo(const Eigen::Vector3d& Nl)
 	tmp.origin.position.y = Pg(1);
 	tmp.origin.position.z = Pg(2);
 	tmp.origin.orientation = QuatEigenToMsg(q_orientation);
-	tmp.observable_area[0][1] = Nl.norm();
+	tmp.observed_range[0][1] = Nl.norm();
+	for(int j=1;j<3;j++){	//y,z
+		tmp.reached_edge[j][0] = false;
+		tmp.reached_edge[j][1] = false;
+	}
 	tmp.is_inward = CheckNormalIsInward(PlaneLocalToGlobal(Nl));
+	tmp.is_observed_in_this_scan = false;
 	tmp.count_match = 0;
 	list_wall_info.push_back(tmp);
 	
 	/*test*/
-	/* std::cout << "Nl: " << std::endl << Nl << std::endl; */
-	/* std::cout << "PointGlobalToWallFrame(X.segment(0, 3), tmp.origin): " << std::endl << PointGlobalToWallFrame(X.segment(0, 3), tmp.origin) << std::endl; */
+	std::cout << "Nl: " << std::endl << Nl << std::endl;
+	std::cout << "PointGlobalToWallFrame(X.segment(0, 3), tmp.origin): " << std::endl << PointGlobalToWallFrame(X.segment(0, 3), tmp.origin) << std::endl;
 }
 
 bool WallEKFSLAM::CheckNormalIsInward(const Eigen::Vector3d& Ng)
@@ -527,10 +536,23 @@ bool WallEKFSLAM::CheckNormalIsInward(const Eigen::Vector3d& Ng)
 
 void WallEKFSLAM::JudgeWallsCanBeObserbed(void)
 {
-	int num_wall = (X.size() - size_robot_state)/size_wall_state;
-	for(int i=0;i<num_wall;i++){
+	const double small_tolerance = 5.0;
+	const double large_tolerance = 10.0;
+	
+	for(size_t i=0;i<list_wall_info.size();i++){
+		/*set probable range*/
+		double probable_range[3][2];	//[x, y, z][negative, positive]
+		for(int j=1;j<3;j++){	//y,z
+			if(list_wall_info[i].reached_edge[j][0])	probable_range[j][0] = list_wall_info[i].observed_range[j][0] - small_tolerance;
+			else	probable_range[j][0] = list_wall_info[i].observed_range[j][0] - large_tolerance;
+			if(list_wall_info[i].reached_edge[j][1])	probable_range[j][1] = list_wall_info[i].observed_range[j][1] + small_tolerance;
+			else	probable_range[j][1] = list_wall_info[i].observed_range[j][1] + large_tolerance;
+		}
+
+		Eigen::Vector3d Position_in_wall_frame = PointGlobalToWallFrame(X.segment(0, 3), list_wall_info[i].origin);
 		Eigen::Vector3d Ng = X.segment(size_robot_state+i*size_wall_state, size_wall_state);
 		if(list_wall_info[i].is_inward!=CheckNormalIsInward(Ng))	list_wall_info[i].available = false;
+		else if(Position_in_wall_frame(1)<probable_range[1][0] || Position_in_wall_frame(1)>probable_range[1][1] || Position_in_wall_frame(2)<probable_range[2][0] || Position_in_wall_frame(2)>probable_range[2][1])	list_wall_info[i].available = false;
 		else	list_wall_info[i].available = true;
 	}
 }
