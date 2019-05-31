@@ -36,8 +36,8 @@ class WallEKFSLAM{
 			geometry_msgs::Pose origin;
 			bool is_inward;
 			int count_match;
-			double observable_area[3][2];	//[x, y, z][min, max]
-			double unobservable_area[3][2];	//[x, y, z][min, max]
+			double observable_area[3][2] = {};	//[x, y, z][min, max] in wall frame
+			double unobservable_area[3][2];	//[x, y, z][min, max] in wall frame
 			bool available;
 		};
 		/*objects*/
@@ -77,6 +77,7 @@ class WallEKFSLAM{
 		Eigen::Vector3d PlaneGlobalToLocal(const Eigen::Vector3d& Ng);
 		Eigen::Vector3d PlaneLocalToGlobal(const Eigen::Vector3d& Nl);
 		Eigen::Vector3d PointLocalToGlobal(const Eigen::Vector3d& Pl);
+		Eigen::Vector3d PointGlobalToWallFrame(const Eigen::Vector3d& Pg, geometry_msgs::Pose origin);
 		void PushBackMatchingLine(const Eigen::Vector3d& P1, const Eigen::Vector3d& P2);	//visualization
 		void Publication();
 		geometry_msgs::PoseStamped StateVectorToPoseStamped(void);
@@ -482,27 +483,37 @@ int WallEKFSLAM::SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::Vector
 
 void WallEKFSLAM::PushBackWallInfo(const Eigen::Vector3d& Nl)
 {
+	/*origin-position*/
 	Eigen::Vector3d Pg = PointLocalToGlobal(Nl);
-	/* double delta_y = acos((-Nl).dot(Eigen::Vector3d(1,0,0))/Nl.norm()); */
-	/* tf::Quaternion q_delta_y = tf::createQuaternionFromRPY(0, 0, delta_y); */
-	/* tf::Quaternion q_orientation = tf::createQuaternionFromRPY(X(3), X(4), X(5))*GetRotationQuaternionBetweenVectors(Eigen::Vector3d(1,0,0), -Nl); */
-	Eigen::Matrix3d Rot_robot = GetRotationXYZMatrix(X.segment(3, 3), false);
-	Eigen::Matrix3d Rot_wall;
-	for(int i=0;i<3;i++){
-		Eigen::Vector3d Col_robot = Rot_robot.block(0,i,3,1);
-		Eigen::Vector3d Col_wall = Col_robot - Col_robot.dot(Pg)/Pg.dot(Pg)*Pg;
-		Rot_wall.block(0, i, 3, 1) = Col_robot.normalized();
-	}
-	Eigen::Quaterniond q_orientation(Rot_wall);
+	/*origin-orientation*/
+	std::vector<Eigen::Vector3d> Axes_wall_local(3);	//vectors of xyz axes
+	Axes_wall_local[0] = -Nl;
+	Axes_wall_local[2] = Eigen::Vector3d(0,0,1) - Eigen::Vector3d(0,0,1).dot(Nl)/Nl.dot(Nl)*Nl;
+	Axes_wall_local[1] = -Axes_wall_local[0].cross(Axes_wall_local[2]);	//this cross product needs x(-1)
 
+	Eigen::Matrix3d Axes_wall_global;
+	for(int i=0;i<3;i++){
+		Eigen::Vector3d Axis_wall_global = GetRotationXYZMatrix(X.segment(3, 3), false)*Axes_wall_local[i];
+		Axis_wall_global /= Axis_wall_global.norm();
+		Axes_wall_global.block(0, i, 3, 1) = Axis_wall_global;
+	}
+	Eigen::Quaterniond q_orientation(Axes_wall_global);
+	q_orientation.normalize();
+
+	/*push back*/
 	WallInfo tmp;
 	tmp.origin.position.x = Pg(0);
 	tmp.origin.position.y = Pg(1);
 	tmp.origin.position.z = Pg(2);
 	tmp.origin.orientation = QuatEigenToMsg(q_orientation);
+	tmp.observable_area[0][1] = Nl.norm();
 	tmp.is_inward = CheckNormalIsInward(PlaneLocalToGlobal(Nl));
 	tmp.count_match = 0;
 	list_wall_info.push_back(tmp);
+	
+	/*test*/
+	/* std::cout << "Nl: " << std::endl << Nl << std::endl; */
+	/* std::cout << "PointGlobalToWallFrame(X.segment(0, 3), tmp.origin): " << std::endl << PointGlobalToWallFrame(X.segment(0, 3), tmp.origin) << std::endl; */
 }
 
 bool WallEKFSLAM::CheckNormalIsInward(const Eigen::Vector3d& Ng)
@@ -557,6 +568,24 @@ Eigen::Vector3d WallEKFSLAM::PointLocalToGlobal(const Eigen::Vector3d& Pl)
 {
 	Eigen::Vector3d Pg = GetRotationXYZMatrix(X.segment(3, 3), false)*Pl + X.segment(0, 3);
 	return Pg;
+}
+
+Eigen::Vector3d WallEKFSLAM::PointGlobalToWallFrame(const Eigen::Vector3d& Pg, geometry_msgs::Pose origin)
+{
+	/*linear & rotation*/
+	tf::Quaternion q_pg(
+		Pg(0) - origin.position.x,
+		Pg(1) - origin.position.y,
+		Pg(2) - origin.position.z,
+		0.0
+	);
+	tf::Quaternion q_origin_orientation;
+	quaternionMsgToTF(origin.orientation, q_origin_orientation);
+	tf::Quaternion q_pl = q_origin_orientation.inverse()*q_pg*q_origin_orientation;
+
+	Eigen::Vector3d Pl = Eigen::Vector3d(q_pl.x(), q_pl.y(), q_pl.z());
+
+	return Pl;
 }
 
 void WallEKFSLAM::Publication(void)
@@ -693,10 +722,10 @@ void WallEKFSLAM::MatrixVStack(Eigen::MatrixXd& A, const Eigen::MatrixXd& B)
 geometry_msgs::Quaternion WallEKFSLAM::QuatEigenToMsg(Eigen::Quaterniond q_eigen)
 {
 	geometry_msgs::Quaternion q_msg;
-	q_msg.x = (double)q_eigen.x();
-	q_msg.y = (double)q_eigen.y();
-	q_msg.z = (double)q_eigen.z();
-	q_msg.w = (double)q_eigen.w();
+	q_msg.x = q_eigen.x();
+	q_msg.y = q_eigen.y();
+	q_msg.z = q_eigen.z();
+	q_msg.w = q_eigen.w();
 	return q_msg;
 }
 
