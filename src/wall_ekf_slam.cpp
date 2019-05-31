@@ -537,7 +537,7 @@ bool WallEKFSLAM::CheckNormalIsInward(const Eigen::Vector3d& Ng)
 void WallEKFSLAM::JudgeWallsCanBeObserbed(void)
 {
 	const double small_tolerance = 5.0;
-	const double large_tolerance = 10.0;
+	const double large_tolerance = 15.0;
 	
 	for(size_t i=0;i<list_wall_info.size();i++){
 		/*set probable range*/
