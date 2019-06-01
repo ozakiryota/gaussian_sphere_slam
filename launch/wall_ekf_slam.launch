@@ -30,4 +30,10 @@
 	<!-- 	<remap from="/odom" to="/integrated_to_init"/> -->
 	<!-- 	<remap from="/odom/change_axis" to="/loamvelodyne_odometry"/> -->
 	<!-- </node> -->
+
+	<!-- visualize -->
+	<node pkg="msg_conversion" type="posestamped_to_odometry" name="posestamped_to_odometry">
+		<remap from="/pose" to="/pose_wall_ekf_slam"/>
+	</node>
+
 </launch>
