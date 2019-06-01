@@ -662,8 +662,8 @@ void WallEKFSLAM::Publication(void)
 	geometry_msgs::PoseArray wall_origins;
 	wall_origins.header.frame_id = "/odom";
 	wall_origins.header.stamp = time_imu_now;
-	/* for(size_t i=0;i<list_wall_info.size();i++)	if(list_wall_info[i].available)	wall_origins.poses.push_back(list_wall_info[i].origin); */
-	for(size_t i=0;i<list_wall_info.size();i++)	wall_origins.poses.push_back(list_wall_info[i].origin);
+	for(size_t i=0;i<list_wall_info.size();i++)	if(list_wall_info[i].available)	wall_origins.poses.push_back(list_wall_info[i].origin);
+	/* for(size_t i=0;i<list_wall_info.size();i++)	wall_origins.poses.push_back(list_wall_info[i].origin); */
 	pub_posearray.publish(wall_origins);
 }
 
