@@ -4,7 +4,6 @@ Panels:
     Name: Displays
     Property Tree Widget:
       Expanded:
-        - /Global Options1
         - /Odometry1/Shape1
         - /Odometry2/Shape1
       Splitter Ratio: 0.5
@@ -73,7 +72,7 @@ Visualization Manager:
       Axis: Z
       Channel Name: intensity
       Class: rviz/PointCloud2
-      Color: 0; 0; 0
+      Color: 125; 125; 125
       Color Transformer: FlatColor
       Decay Time: 0
       Enabled: true
