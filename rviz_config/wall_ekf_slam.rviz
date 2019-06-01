@@ -215,6 +215,26 @@ Visualization Manager:
       Topic: /wall_origins
       Unreliable: false
       Value: true
+    - Angle Tolerance: 0.5
+      Class: rviz/Odometry
+      Color: 255; 255; 0
+      Enabled: true
+      Keep: 10000
+      Length: 1
+      Name: Odometry
+      Position Tolerance: 1
+      Topic: /odom/from_posestamped
+      Value: true
+    - Angle Tolerance: 0.5
+      Class: rviz/Odometry
+      Color: 0; 255; 255
+      Enabled: true
+      Keep: 10000
+      Length: 1
+      Name: Odometry
+      Position Tolerance: 1
+      Topic: /gyrodometry
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 0; 0; 0
