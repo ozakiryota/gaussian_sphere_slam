@@ -166,6 +166,8 @@ Visualization Manager:
         All Enabled: true
         gyrodometry:
           Value: true
+        initial_orientation:
+          Value: true
         odom:
           Value: true
         velodyne:
@@ -178,6 +180,8 @@ Visualization Manager:
       Tree:
         odom:
           gyrodometry:
+            {}
+          initial_orientation:
             {}
           velodyne:
             {}
@@ -213,7 +217,7 @@ Visualization Manager:
       Value: true
     - Angle Tolerance: 0.5
       Class: rviz/Odometry
-      Color: 255; 25; 0
+      Color: 255; 255; 0
       Enabled: true
       Keep: 10000
       Length: 1
@@ -223,7 +227,7 @@ Visualization Manager:
       Value: true
     - Angle Tolerance: 0.100000001
       Class: rviz/Odometry
-      Color: 255; 25; 0
+      Color: 0; 255; 255
       Enabled: true
       Keep: 10000
       Length: 1
