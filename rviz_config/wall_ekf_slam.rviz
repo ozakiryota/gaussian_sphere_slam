@@ -4,6 +4,7 @@ Panels:
     Name: Displays
     Property Tree Widget:
       Expanded:
+        - /Global Options1
         - /Odometry1/Shape1
         - /Odometry2/Shape1
       Splitter Ratio: 0.5
@@ -30,10 +31,10 @@ Panels:
 Visualization Manager:
   Class: ""
   Displays:
-    - Alpha: 0.200000003
+    - Alpha: 0.5
       Cell Size: 1
       Class: rviz/Grid
-      Color: 255; 255; 0
+      Color: 125; 125; 125
       Enabled: true
       Line Style:
         Line Width: 0.0299999993
@@ -72,7 +73,7 @@ Visualization Manager:
       Axis: Z
       Channel Name: intensity
       Class: rviz/PointCloud2
-      Color: 255; 255; 255
+      Color: 0; 0; 0
       Color Transformer: FlatColor
       Decay Time: 0
       Enabled: true
@@ -217,7 +218,7 @@ Visualization Manager:
       Topic: /wall_origins
       Unreliable: false
       Value: true
-    - Angle Tolerance: 0.5
+    - Angle Tolerance: 0.100000001
       Class: rviz/Odometry
       Covariance:
         Orientation:
@@ -242,7 +243,7 @@ Visualization Manager:
         Alpha: 1
         Axes Length: 1
         Axes Radius: 0.100000001
-        Color: 255; 255; 0
+        Color: 255; 0; 255
         Head Length: 0.300000012
         Head Radius: 0.100000001
         Shaft Length: 1
