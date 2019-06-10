@@ -32,7 +32,7 @@ class WallEKFSLAM{
 		const int size_robot_state = 6;	//X, Y, Z, R, P, Y (Global)
 		const int size_wall_state = 3;	//x, y, z (Local)
 		/*struct*/
-		struct LMInfo{
+		struct WallInfo{
 			geometry_msgs::Pose origin;
 			bool is_observed_in_this_scan;
 			bool is_inward;
@@ -42,19 +42,12 @@ class WallEKFSLAM{
 			bool reached_edge[3][2];	//[x, y, z][negative, positive] in wall frame
 			bool available;
 		};
-		struct ObsInfo{
-			int matched_lm_id = -1;
-			Eigen::VectorXd H;
-			Eigen::MatrixXd jH;
-			Eigen::VectorXd Y;
-			Eigen::MatrixXd S;
-		};
 		/*objects*/
 		Eigen::VectorXd X;
 		Eigen::MatrixXd P;
 		sensor_msgs::Imu bias;
 		pcl::PointCloud<pcl::InterestPoint>::Ptr d_gaussian_sphere {new pcl::PointCloud<pcl::InterestPoint>};
-		std::vector<LMInfo> list_lm_info;
+		std::vector<WallInfo> list_wall_info;
 		/*flags*/
 		bool inipose_is_available = false;
 		bool bias_is_available = false;
@@ -77,8 +70,7 @@ class WallEKFSLAM{
 		void CallbackOdom(const nav_msgs::OdometryConstPtr& msg);
 		void PredictionOdom(nav_msgs::Odometry odom, double dt);
 		void CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr &msg);
-		void SearchCorrespondObsID(std::vector<ObsInfo>& list_obs_info, int lm_id);
-		void Innovation(int lm_id, const Eigen::Vector3d& Z, Eigen::VectorXd& H, Eigen::MatrixXd& jH, Eigen::VectorXd& Y, Eigen::MatrixXd& S);
+		int SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::VectorXd& Hi, Eigen::MatrixXd& jHi, Eigen::VectorXd& Yi, Eigen::MatrixXd& Si);
 		void PushBackWallInfo(const Eigen::Vector3d& Nl);
 		tf::Quaternion GetRotationQuaternionBetweenVectors(const Eigen::Vector3d& Origin, const Eigen::Vector3d& Target);
 		bool CheckNormalIsInward(const Eigen::Vector3d& Ng);
@@ -331,70 +323,66 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 	std::cout << "d_gaussian_sphere->points.size() = " << d_gaussian_sphere->points.size() << std::endl;
 	for(size_t i=0;i<d_gaussian_sphere->points.size();i++)	std::cout << "d_gaussian_sphere->points[" << i << "].strength = " << d_gaussian_sphere->points[i].strength << std::endl;
 
-	std::vector<ObsInfo> list_obs_info(d_gaussian_sphere->points.size());
-
 	Eigen::VectorXd Xnew(0);
 	Eigen::VectorXd Zstacked(0);
 	Eigen::VectorXd Hstacked(0);
 	Eigen::MatrixXd jHstacked(0, 0);
 
-	matching_lines.points.clear();	//visualization
+	matching_lines.points.clear();
 
 	JudgeWallsCanBeObserbed();
 
-	int num_wall = (X.size() - size_robot_state)/size_wall_state;
-	/* for(size_t i=0;i<d_gaussian_sphere->points.size();i++){ */
-	for(int i=0;i<num_wall;i++){
-		if(list_lm_info[i].available)	SearchCorrespondObsID(list_obs_info, i);
-	}
-	for(size_t i=0;i<list_obs_info.size();i++){
-		int lm_id = list_obs_info[i].matched_lm_id;
-		Eigen::Vector3d Nl(
+	for(size_t i=0;i<d_gaussian_sphere->points.size();i++){
+		Eigen::Vector3d Zi(
 			d_gaussian_sphere->points[i].x,
 			d_gaussian_sphere->points[i].y,
 			d_gaussian_sphere->points[i].z
 		);
-		if(lm_id==-1){	//new landmark
-			VectorVStack(Xnew, PlaneLocalToGlobal(Nl));
-			PushBackWallInfo(Nl);
+		Eigen::VectorXd Hi;
+		Eigen::MatrixXd jHi;
+		Eigen::VectorXd Yi;
+		Eigen::MatrixXd Si;
+		int correspond_id = SearchCorrespondWallID(Zi, Hi, jHi, Yi, Si);
+		if(correspond_id==-1){
+			VectorVStack(Xnew, PlaneLocalToGlobal(Zi));
+			PushBackWallInfo(Zi);
 		}
 		else{
 			/*update wall info*/
-			Eigen::Vector3d Position_in_wall_frame = PointGlobalToWallFrame(X.segment(0, 3), list_lm_info[lm_id].origin);
-			list_lm_info[lm_id].is_observed_in_this_scan = true;
-			list_lm_info[lm_id].count_match += 1;
+			Eigen::Vector3d Position_in_wall_frame = PointGlobalToWallFrame(X.segment(0, 3), list_wall_info[correspond_id].origin);
+			list_wall_info[correspond_id].is_observed_in_this_scan = true;
+			list_wall_info[correspond_id].count_match += 1;
 			for(int j=0;j<3;j++){
-				if(Position_in_wall_frame(j) < list_lm_info[lm_id].observed_range[j][0])	list_lm_info[lm_id].observed_range[j][0] = Position_in_wall_frame(j);
-				if(Position_in_wall_frame(j) > list_lm_info[lm_id].observed_range[j][1])	list_lm_info[lm_id].observed_range[j][1] = Position_in_wall_frame(j);
+				if(Position_in_wall_frame(j) < list_wall_info[correspond_id].observed_range[j][0])	list_wall_info[correspond_id].observed_range[j][0] = Position_in_wall_frame(j);
+				if(Position_in_wall_frame(j) > list_wall_info[correspond_id].observed_range[j][1])	list_wall_info[correspond_id].observed_range[j][1] = Position_in_wall_frame(j);
 			}
-			/*judge in maching time*/
-			const int threshold_count_match = 3;
-			if(list_lm_info[lm_id].count_match>threshold_count_match)	list_lm_info[lm_id].available = true;
-			else	list_lm_info[lm_id].available = false;
 
+			/*judge*/
+			const int threshold_count_match = 3;
+			if(list_wall_info[correspond_id].count_match>threshold_count_match)	list_wall_info[correspond_id].available = true;
+			else	list_wall_info[correspond_id].available = false;
 			/*stack*/
-			if(list_lm_info[lm_id].available){
-				PushBackMatchingLine(X.segment(size_robot_state + list_obs_info[i].matched_lm_id*size_wall_state, size_wall_state), PointLocalToGlobal(Nl));
-				VectorVStack(Zstacked, Nl);
-				VectorVStack(Hstacked, list_obs_info[i].H);
-				MatrixVStack(jHstacked, list_obs_info[i].jH);
-				//スタックする順番適当でいいの？
+			if(list_wall_info[correspond_id].available){
+				PushBackMatchingLine(X.segment(size_robot_state + correspond_id*size_wall_state, size_wall_state), PointLocalToGlobal(Zi));
+				VectorVStack(Zstacked, Zi);
+				VectorVStack(Hstacked, Hi);
+				MatrixVStack(jHstacked, jHi);
 			}
 		}
 	}
-
 	/*update wall info*/
 	const double tolerance = 5.0;
+	int num_wall = (X.size() - size_robot_state)/size_wall_state;
 	for(int i=0;i<num_wall;i++){
-		Eigen::Vector3d Position_in_wall_frame = PointGlobalToWallFrame(X.segment(0, 3), list_lm_info[i].origin);
-		if(!list_lm_info[i].is_observed_in_this_scan && Position_in_wall_frame(0)<list_lm_info[i].observed_range[0][1]){
+		Eigen::Vector3d Position_in_wall_frame = PointGlobalToWallFrame(X.segment(0, 3), list_wall_info[i].origin);
+		if(!list_wall_info[i].is_observed_in_this_scan && Position_in_wall_frame(0)<list_wall_info[i].observed_range[0][1]){
 			for(int j=1;j<3;j++){
-				if(Position_in_wall_frame(j) < list_lm_info[j].observed_range[j][0]-tolerance)	list_lm_info[i].reached_edge[j][0] = true;
-				if(Position_in_wall_frame(j) > list_lm_info[j].observed_range[j][1]+tolerance)	list_lm_info[i].reached_edge[j][1] = true;
+				if(Position_in_wall_frame(j) < list_wall_info[j].observed_range[j][0]-tolerance)	list_wall_info[i].reached_edge[j][0] = true;
+				if(Position_in_wall_frame(j) > list_wall_info[j].observed_range[j][1]+tolerance)	list_wall_info[i].reached_edge[j][1] = true;
 			}
 		}
 		/*reset*/
-		list_lm_info[i].is_observed_in_this_scan = false;
+		list_wall_info[i].is_observed_in_this_scan = false;
 	}
 	/*update*/
 	if(Zstacked.size()>0)	ObservationUpdate(Zstacked, Hstacked, jHstacked);
@@ -408,12 +396,10 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 	Publication();
 }
 
-void WallEKFSLAM::SearchCorrespondObsID(std::vector<ObsInfo>& list_obs_info, int lm_id)
+int WallEKFSLAM::SearchCorrespondWallID(const Eigen::VectorXd& Zi, Eigen::VectorXd& Hi, Eigen::MatrixXd& jHi, Eigen::VectorXd& Yi, Eigen::MatrixXd& Si)
 {
-	Eigen::VectorXd H_correspond;
-	Eigen::MatrixXd jH_correspond;
-	Eigen::VectorXd Y_correspond;
-	Eigen::MatrixXd S_correspond;
+	/* std::cout << "Zi = " << Zi << std::endl; */
+	int num_wall = (X.size() - size_robot_state)/size_wall_state;
 
 	const double threshold_mahalanobis_dist = 0.36;	//chi-square distribution
 	double min_mahalanobis_dist = threshold_mahalanobis_dist;
@@ -421,93 +407,82 @@ void WallEKFSLAM::SearchCorrespondObsID(std::vector<ObsInfo>& list_obs_info, int
 	const double threshold_euclidean_dist = 0.2;	//test
 	double min_euclidean_dist = threshold_euclidean_dist;	//test
 	int correspond_id = -1;
-	for(size_t i=0;i<d_gaussian_sphere->points.size();i++){
-		Eigen::Vector3d Zi(
-			d_gaussian_sphere->points[i].x,
-			d_gaussian_sphere->points[i].y,
-			d_gaussian_sphere->points[i].z
-		);
+	for(int i=0;i<num_wall;i++){
+		if(list_wall_info[i].available){
+			Eigen::Vector3d Ng = X.segment(size_robot_state + i*size_wall_state, size_wall_state);
+			Eigen::Vector3d RPY = X.segment(3, 3);
+			double d2 = Ng.dot(Ng);
+			/*H*/
+			Eigen::Vector3d H = PlaneGlobalToLocal(Ng);
+			/*jH*/
+			Eigen::MatrixXd jH = Eigen::MatrixXd::Zero(Zi.size(), X.size());
+			/*dH/d(XYZ)*/
+			Eigen::Vector3d rotN = GetRotationXYZMatrix(RPY, true)*Ng;
+			for(int j=0;j<Zi.size();j++){
+				for(int k=0;k<3;k++)	jH(j, k) = -Ng(k)/d2*rotN(j);
+			}
+			/*dH/d(RPY)*/
+			Eigen::Vector3d delN = Ng - Ng.dot(X.segment(0, 3))/d2*Ng;
+			jH(0, 3) = 0;
+			jH(0, 4) = (-sin(RPY(1))*cos(RPY(2)))*delN(0) + (-sin(RPY(1))*sin(RPY(2)))*delN(1) + (-cos(RPY(1)))*delN(2);
+			jH(0, 5) = (-cos(RPY(1))*sin(RPY(2)))*delN(0) + (cos(RPY(1))*cos(RPY(2)))*delN(1);
+			jH(1, 3) = (cos(RPY(0))*sin(RPY(1))*cos(RPY(2)) + sin(RPY(0))*sin(RPY(2)))*delN(0) + (cos(RPY(0))*sin(RPY(1))*sin(RPY(2)) - sin(RPY(0))*cos(RPY(2)))*delN(1) + (cos(RPY(0))*cos(RPY(1)))*delN(2);
+			jH(1, 4) = (sin(RPY(0))*cos(RPY(1))*cos(RPY(2)))*delN(0) + (sin(RPY(0))*cos(RPY(1))*sin(RPY(2)))*delN(1) + (-sin(RPY(0))*sin(RPY(1)))*delN(2);
+			jH(1, 5) = (-sin(RPY(0))*sin(RPY(1))*sin(RPY(2)) - cos(RPY(0))*cos(RPY(2)))*delN(0) + (sin(RPY(0))*sin(RPY(1))*cos(RPY(2)) - cos(RPY(0))*sin(RPY(2)))*delN(1);
+			jH(2, 3) = (-sin(RPY(0))*sin(RPY(1))*cos(RPY(2)) + cos(RPY(0))*sin(RPY(2)))*delN(0) + (-sin(RPY(0))*sin(RPY(1))*sin(RPY(2)) - cos(RPY(0))*cos(RPY(2)))*delN(1) + (-sin(RPY(0))*cos(RPY(1)))*delN(2);
+			jH(2, 4) = (cos(RPY(0))*cos(RPY(1))*cos(RPY(2)))*delN(0) + (cos(RPY(0))*cos(RPY(1))*sin(RPY(2)))*delN(1) + (-cos(RPY(0))*sin(RPY(1)))*delN(2);
+			jH(2, 5) = (-cos(RPY(0))*sin(RPY(1))*sin(RPY(2)) + sin(RPY(0))*cos(RPY(2)))*delN(0) + (cos(RPY(0))*sin(RPY(1))*cos(RPY(2)) + sin(RPY(0))*sin(RPY(2)))*delN(1);
+			/*dH/d(Wall)*/
+			Eigen::Matrix3d Tmp;
+			for(int j=0;j<Zi.size();j++){
+				for(int k=0;k<size_wall_state;k++){
+					if(j==k)	Tmp(j, k) = 1 - ((Ng.dot(X.segment(0, 3)) + Ng(j)*X(k))/d2 - Ng(j)*Ng.dot(X.segment(0, 3))/(d2*d2)*2*Ng(k));
+					else	Tmp(j, k) = -(Ng(j)*X(k)/d2 - Ng(j)*Ng.dot(X.segment(0, 3))/(d2*d2)*2*Ng(k));
+				}
+			}
+			jH.block(0, size_robot_state + i*size_wall_state, Zi.size(), size_wall_state) = GetRotationXYZMatrix(RPY, true)*Tmp;
+			/*R*/
+			const double sigma = 1.0e-2;
+			Eigen::MatrixXd R = sigma*Eigen::MatrixXd::Identity(Zi.size(), Zi.size());
+			/*Y, S*/
+			Eigen::VectorXd Y = Zi - H;
+			Eigen::MatrixXd S = jH*P*jH.transpose() + R;
 
-		Eigen::VectorXd Hi;
-		Eigen::MatrixXd jHi;
-		Eigen::VectorXd Yi;
-		Eigen::MatrixXd Si;
-		Innovation(lm_id, Zi, Hi, jHi, Yi, Si);
-
-		double mahalanobis_dist = Yi.transpose()*Si.inverse()*Yi;
-		double euclidean_dist = Yi.norm();	//test
-		std::cout << "mahalanobis_dist = " << mahalanobis_dist << std::endl;
-		if(std::isnan(mahalanobis_dist)){	//test
-			std::cout << "mahalanobis_dist is NAN" << std::endl;
-			// exit(1);
-		}
-
-		if(euclidean_dist<min_euclidean_dist){	//test
-			min_euclidean_dist = euclidean_dist;
-			correspond_id = i;
-			H_correspond = Hi;
-			jH_correspond = jHi;
-			Y_correspond = Yi;
-			S_correspond = Si;
-		}
-		// if(!std::isnan(mahalanobis_dist) && mahalanobis_dist<min_mahalanobis_dist){
-		// }
-	}
-
-	if(correspond_id!=-1){
-		if(list_obs_info[correspond_id].matched_lm_id==-1){
-			list_obs_info[correspond_id].matched_lm_id = correspond_id;
-			list_obs_info[correspond_id].H = H_correspond;
-			list_obs_info[correspond_id].jH = jH_correspond;
-			list_obs_info[correspond_id].Y = Y_correspond;
-			list_obs_info[correspond_id].S = S_correspond;
-		}
-		else{
-			//同時に観測したことがあるかリストをチェック	
-		}
-	}
-}
-
-void WallEKFSLAM::Innovation(int lm_id, const Eigen::Vector3d& Z, Eigen::VectorXd& H, Eigen::MatrixXd& jH, Eigen::VectorXd& Y, Eigen::MatrixXd& S)
-{
-	Eigen::Vector3d Ng = X.segment(size_robot_state + lm_id*size_wall_state, size_wall_state);
-	Eigen::Vector3d RPY = X.segment(3, 3);
-	double d2 = Ng.dot(Ng);
-	/*H*/
-	H = PlaneGlobalToLocal(Ng);
-	/*jH*/
-	jH = Eigen::MatrixXd::Zero(Z.size(), X.size());
-	/*dH/d(XYZ)*/
-	Eigen::Vector3d rotN = GetRotationXYZMatrix(RPY, true)*Ng;
-	for(int j=0;j<Z.size();j++){
-		for(int k=0;k<3;k++)	jH(j, k) = -Ng(k)/d2*rotN(j);
-	}
-	/*dH/d(RPY)*/
-	Eigen::Vector3d delN = Ng - Ng.dot(X.segment(0, 3))/d2*Ng;
-	jH(0, 3) = 0;
-	jH(0, 4) = (-sin(RPY(1))*cos(RPY(2)))*delN(0) + (-sin(RPY(1))*sin(RPY(2)))*delN(1) + (-cos(RPY(1)))*delN(2);
-	jH(0, 5) = (-cos(RPY(1))*sin(RPY(2)))*delN(0) + (cos(RPY(1))*cos(RPY(2)))*delN(1);
-	jH(1, 3) = (cos(RPY(0))*sin(RPY(1))*cos(RPY(2)) + sin(RPY(0))*sin(RPY(2)))*delN(0) + (cos(RPY(0))*sin(RPY(1))*sin(RPY(2)) - sin(RPY(0))*cos(RPY(2)))*delN(1) + (cos(RPY(0))*cos(RPY(1)))*delN(2);
-	jH(1, 4) = (sin(RPY(0))*cos(RPY(1))*cos(RPY(2)))*delN(0) + (sin(RPY(0))*cos(RPY(1))*sin(RPY(2)))*delN(1) + (-sin(RPY(0))*sin(RPY(1)))*delN(2);
-	jH(1, 5) = (-sin(RPY(0))*sin(RPY(1))*sin(RPY(2)) - cos(RPY(0))*cos(RPY(2)))*delN(0) + (sin(RPY(0))*sin(RPY(1))*cos(RPY(2)) - cos(RPY(0))*sin(RPY(2)))*delN(1);
-	jH(2, 3) = (-sin(RPY(0))*sin(RPY(1))*cos(RPY(2)) + cos(RPY(0))*sin(RPY(2)))*delN(0) + (-sin(RPY(0))*sin(RPY(1))*sin(RPY(2)) - cos(RPY(0))*cos(RPY(2)))*delN(1) + (-sin(RPY(0))*cos(RPY(1)))*delN(2);
-	jH(2, 4) = (cos(RPY(0))*cos(RPY(1))*cos(RPY(2)))*delN(0) + (cos(RPY(0))*cos(RPY(1))*sin(RPY(2)))*delN(1) + (-cos(RPY(0))*sin(RPY(1)))*delN(2);
-	jH(2, 5) = (-cos(RPY(0))*sin(RPY(1))*sin(RPY(2)) + sin(RPY(0))*cos(RPY(2)))*delN(0) + (cos(RPY(0))*sin(RPY(1))*cos(RPY(2)) + sin(RPY(0))*sin(RPY(2)))*delN(1);
-	/*dH/d(Wall)*/
-	Eigen::Matrix3d Tmp;
-	for(int j=0;j<Z.size();j++){
-		for(int k=0;k<size_wall_state;k++){
-			if(j==k)	Tmp(j, k) = 1 - ((Ng.dot(X.segment(0, 3)) + Ng(j)*X(k))/d2 - Ng(j)*Ng.dot(X.segment(0, 3))/(d2*d2)*2*Ng(k));
-			else	Tmp(j, k) = -(Ng(j)*X(k)/d2 - Ng(j)*Ng.dot(X.segment(0, 3))/(d2*d2)*2*Ng(k));
+			double mahalanobis_dist = Y.transpose()*S.inverse()*Y;
+			double euclidean_dist = Y.norm();	//test
+			/* std::cout << "mahalanobis_dist = " << mahalanobis_dist << std::endl; */
+			/* std::cout << "H = " << H << std::endl; */
+			// std::cout << "euclidean_dist = " << euclidean_dist << std::endl;
+			if(std::isnan(mahalanobis_dist)){	//test
+				/* std::cout << "mahalanobis_dist is NAN" << std::endl; */
+				/* std::cout << "X =" << std::endl << X << std::endl; */
+				/* std::cout << "P =" << std::endl << P << std::endl; */
+				/* std::cout << "jH =" << std::endl << jH << std::endl; */
+				/* std::cout << "S =" << std::endl << S << std::endl; */
+				/* std::cout << "S.inverse() =" << std::endl << S.inverse() << std::endl; */
+				/* std::cout << "Y =" << std::endl << Y << std::endl; */
+				// exit(1);
+			}
+			if(euclidean_dist<min_euclidean_dist && list_wall_info[i].is_inward==CheckNormalIsInward(X.segment(size_robot_state+i*size_wall_state, size_wall_state))){	//test
+				min_euclidean_dist = euclidean_dist;
+				correspond_id = i;
+				Hi = H;
+				jHi = jH;
+				Yi = Y;
+				Si = S;
+			}
+			// if(!std::isnan(mahalanobis_dist) && mahalanobis_dist<min_mahalanobis_dist){
+			// 	min_mahalanobis_dist = mahalanobis_dist;
+			// 	correspond_id = i;
+			// 	jHi = jH;
+			// 	Yi = Y;
+			// 	Si = S;
+			// }
+			/* std::cout << "jH =" << std::endl << jH << std::endl; */
 		}
 	}
-	jH.block(0, size_robot_state + lm_id*size_wall_state, Z.size(), size_wall_state) = GetRotationXYZMatrix(RPY, true)*Tmp;
-	/*R*/
-	const double sigma = 1.0e-2;
-	Eigen::MatrixXd R = sigma*Eigen::MatrixXd::Identity(Z.size(), Z.size());
-	/*Y, S*/
-	Y = Z - H;
-	S = jH*P*jH.transpose() + R;
+
+	return correspond_id;
 }
 
 void WallEKFSLAM::PushBackWallInfo(const Eigen::Vector3d& Nl)
@@ -530,7 +505,7 @@ void WallEKFSLAM::PushBackWallInfo(const Eigen::Vector3d& Nl)
 	q_orientation.normalize();
 
 	/*push back*/
-	LMInfo tmp;
+	WallInfo tmp;
 	tmp.origin.position.x = Pg(0);
 	tmp.origin.position.y = Pg(1);
 	tmp.origin.position.z = Pg(2);
@@ -543,7 +518,7 @@ void WallEKFSLAM::PushBackWallInfo(const Eigen::Vector3d& Nl)
 	tmp.is_inward = CheckNormalIsInward(PlaneLocalToGlobal(Nl));
 	tmp.is_observed_in_this_scan = false;
 	tmp.count_match = 0;
-	list_lm_info.push_back(tmp);
+	list_wall_info.push_back(tmp);
 	
 	/*test*/
 	std::cout << "Nl: " << std::endl << Nl << std::endl;
@@ -564,24 +539,21 @@ void WallEKFSLAM::JudgeWallsCanBeObserbed(void)
 	const double small_tolerance = 5.0;
 	const double large_tolerance = 15.0;
 	
-	for(size_t i=0;i<list_lm_info.size();i++){
-		Eigen::Vector3d Ng = X.segment(size_robot_state+i*size_wall_state, size_wall_state);
-		/*judge in direction of normal*/
-		if(list_lm_info[i].is_inward!=CheckNormalIsInward(Ng))	list_lm_info[i].available = false;
-		else{
-			/*set probable range*/
-			double probable_range[3][2];	//[x, y, z][negative, positive]
-			for(int j=1;j<3;j++){	//y,z
-				if(list_lm_info[i].reached_edge[j][0])	probable_range[j][0] = list_lm_info[i].observed_range[j][0] - small_tolerance;
-				else	probable_range[j][0] = list_lm_info[i].observed_range[j][0] - large_tolerance;
-				if(list_lm_info[i].reached_edge[j][1])	probable_range[j][1] = list_lm_info[i].observed_range[j][1] + small_tolerance;
-				else	probable_range[j][1] = list_lm_info[i].observed_range[j][1] + large_tolerance;
-			}
-			/*judge in distance*/
-			Eigen::Vector3d Position_in_wall_frame = PointGlobalToWallFrame(X.segment(0, 3), list_lm_info[i].origin);
-			if(Position_in_wall_frame(1)<probable_range[1][0] || Position_in_wall_frame(1)>probable_range[1][1] || Position_in_wall_frame(2)<probable_range[2][0] || Position_in_wall_frame(2)>probable_range[2][1])	list_lm_info[i].available = false;
-			else	list_lm_info[i].available = true;
+	for(size_t i=0;i<list_wall_info.size();i++){
+		/*set probable range*/
+		double probable_range[3][2];	//[x, y, z][negative, positive]
+		for(int j=1;j<3;j++){	//y,z
+			if(list_wall_info[i].reached_edge[j][0])	probable_range[j][0] = list_wall_info[i].observed_range[j][0] - small_tolerance;
+			else	probable_range[j][0] = list_wall_info[i].observed_range[j][0] - large_tolerance;
+			if(list_wall_info[i].reached_edge[j][1])	probable_range[j][1] = list_wall_info[i].observed_range[j][1] + small_tolerance;
+			else	probable_range[j][1] = list_wall_info[i].observed_range[j][1] + large_tolerance;
 		}
+
+		Eigen::Vector3d Position_in_wall_frame = PointGlobalToWallFrame(X.segment(0, 3), list_wall_info[i].origin);
+		Eigen::Vector3d Ng = X.segment(size_robot_state+i*size_wall_state, size_wall_state);
+		if(list_wall_info[i].is_inward!=CheckNormalIsInward(Ng))	list_wall_info[i].available = false;
+		else if(Position_in_wall_frame(1)<probable_range[1][0] || Position_in_wall_frame(1)>probable_range[1][1] || Position_in_wall_frame(2)<probable_range[2][0] || Position_in_wall_frame(2)>probable_range[2][1])	list_wall_info[i].available = false;
+		else	list_wall_info[i].available = true;
 	}
 }
 
@@ -690,8 +662,8 @@ void WallEKFSLAM::Publication(void)
 	geometry_msgs::PoseArray wall_origins;
 	wall_origins.header.frame_id = "/odom";
 	wall_origins.header.stamp = time_imu_now;
-	for(size_t i=0;i<list_lm_info.size();i++)	if(list_lm_info[i].available)	wall_origins.poses.push_back(list_lm_info[i].origin);
-	/* for(size_t i=0;i<list_lm_info.size();i++)	wall_origins.poses.push_back(list_lm_info[i].origin); */
+	for(size_t i=0;i<list_wall_info.size();i++)	if(list_wall_info[i].available)	wall_origins.poses.push_back(list_wall_info[i].origin);
+	/* for(size_t i=0;i<list_wall_info.size();i++)	wall_origins.poses.push_back(list_wall_info[i].origin); */
 	pub_posearray.publish(wall_origins);
 }
 
@@ -715,7 +687,7 @@ pcl::PointCloud<pcl::PointXYZ> WallEKFSLAM::StateVectorToPC(void)
 	pcl::PointCloud<pcl::PointXYZ>::Ptr pc (new pcl::PointCloud<pcl::PointXYZ>);
 	int num_wall = (X.size() - size_robot_state)/size_wall_state;
 	for(int i=0;i<num_wall;i++){
-		if(list_lm_info[i].available){
+		if(list_wall_info[i].available){
 			pcl::PointXYZ tmp;
 			tmp.x = X(size_robot_state + i*size_wall_state);
 			tmp.y = X(size_robot_state + i*size_wall_state + 1);
