@@ -6,6 +6,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/PoseArray.h>
 #include <visualization_msgs/Marker.h>
+#include <visualization_msgs/MarkerArray.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <tf/tf.h>
 #include <tf/transform_broadcaster.h>
@@ -27,6 +28,7 @@ class WallEKFSLAM{
 		ros::Publisher pub_pose;
 		ros::Publisher pub_dgaussiansphere_est;
 		ros::Publisher pub_marker;
+		ros::Publisher pub_markerarray;
 		ros::Publisher pub_posearray;
 		/*const*/
 		const int size_robot_state = 6;	//X, Y, Z, R, P, Y (Global)
@@ -41,7 +43,7 @@ class WallEKFSLAM{
 			bool reached_edge[3][2];	//[x, y, z][negative, positive] in wall frame
 			bool available;
 			std::vector<bool> list_lm_observed_simul;
-			bool going_to_be_merged = false;
+			bool was_merged = false;
 		};
 		struct ObsInfo{
 			int matched_lm_id = -1;
@@ -68,9 +70,10 @@ class WallEKFSLAM{
 		ros::Time time_odom_last;
 		/*visualization*/
 		visualization_msgs::Marker matching_lines;
+		visualization_msgs::MarkerArray planes;
 	public:
 		WallEKFSLAM();
-		void SetUpVisualizationMarker(visualization_msgs::Marker& marker);	//visualization
+		void SetUpVisualizationMarkerLineList(visualization_msgs::Marker& marker);	//visualization
 		void CallbackInipose(const geometry_msgs::QuaternionConstPtr& msg);
 		void CallbackBias(const sensor_msgs::ImuConstPtr& msg);
 		void CallbackIMU(const sensor_msgs::ImuConstPtr& msg);
@@ -84,13 +87,14 @@ class WallEKFSLAM{
 		tf::Quaternion GetRotationQuaternionBetweenVectors(const Eigen::Vector3d& Origin, const Eigen::Vector3d& Target);
 		bool CheckNormalIsInward(const Eigen::Vector3d& Ng);
 		void JudgeWallsCanBeObserbed(void);
+		void PushBackMarkerMatchingLines(const Eigen::Vector3d& P1, const Eigen::Vector3d& P2);	//visualization
 		void ObservationUpdate(const Eigen::VectorXd& Z, const Eigen::VectorXd& H, const Eigen::MatrixXd& jH);
 		Eigen::Vector3d PlaneGlobalToLocal(const Eigen::Vector3d& Ng);
 		Eigen::Vector3d PlaneLocalToGlobal(const Eigen::Vector3d& Nl);
 		Eigen::Vector3d PointLocalToGlobal(const Eigen::Vector3d& Pl);
 		Eigen::Vector3d PointGlobalToWallFrame(const Eigen::Vector3d& Pg, geometry_msgs::Pose origin);
-		void PushBackMatchingLine(const Eigen::Vector3d& P1, const Eigen::Vector3d& P2);	//visualization
 		void Publication();
+		void PushBackMarkerPlanes(LMInfo lm_info);	//visualization
 		geometry_msgs::PoseStamped StateVectorToPoseStamped(void);
 		pcl::PointCloud<pcl::PointXYZ> StateVectorToPC(void);
 		Eigen::Matrix3d GetRotationXYZMatrix(const Eigen::Vector3d& RPY, bool inverse);
@@ -111,12 +115,13 @@ WallEKFSLAM::WallEKFSLAM()
 	pub_posearray = nh.advertise<geometry_msgs::PoseArray>("/wall_origins", 1);
 	pub_dgaussiansphere_est = nh.advertise<sensor_msgs::PointCloud2>("/d_gaussian_sphere_est", 1);
 	pub_marker = nh.advertise<visualization_msgs::Marker>("matching_lines", 1);
+	pub_markerarray = nh.advertise<visualization_msgs::MarkerArray>("planes", 1);
 	X = Eigen::VectorXd::Zero(size_robot_state);
 	P = Eigen::MatrixXd::Identity(size_robot_state, size_robot_state);
-	SetUpVisualizationMarker(matching_lines);
+	SetUpVisualizationMarkerLineList(matching_lines);
 }
 
-void WallEKFSLAM::SetUpVisualizationMarker(visualization_msgs::Marker& marker)
+void WallEKFSLAM::SetUpVisualizationMarkerLineList(visualization_msgs::Marker& marker)
 {
 	marker.header.frame_id = "/odom";
 	marker.ns = "matching_lines";
@@ -381,19 +386,22 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 			else	list_lm_info[lm_id].available = false;
 			/*stack*/
 			if(list_lm_info[lm_id].available){
-				PushBackMatchingLine(X.segment(size_robot_state + lm_id*size_wall_state, size_wall_state), PointLocalToGlobal(Nl));
+				PushBackMarkerMatchingLines(X.segment(size_robot_state + lm_id*size_wall_state, size_wall_state), PointLocalToGlobal(Nl));
 				VectorVStack(Zstacked, Nl);
 				VectorVStack(Hstacked, list_obs_info[i].H);
 				MatrixVStack(jHstacked, list_obs_info[i].jH);
-				//スタックする順番適当でいいの？
 			}
 		}
 	}
 	/*marge LM*/
 	/* for(int i=0;i<list_lm_info.size();){ */
-	/* 	if(list_lm_info[i].going_to_be_merged){ */
+	/* 	if(list_lm_info[i].was_merged){ */
 	/* 		list_lm_info.erase(list_lm_info.begin() + i); */
-    /*  */
+	/* 		Eigen::VectorXd tmp_X = X; */
+	/* 		Eigen::MatrixXd tmp_P = P; */
+	/* 		X.resize(X.size()-size_wall_state); */
+	/* 		X.segment(0, i) = tmp_X.segment(0, i); */
+	/* 		X.segment(i, X.size()-i) = tmp_X.segment(i+1, tmp_X.size()-(i+1)); */
 	/* 	} */
 	/* 	else i++; */
 	/* } */
@@ -490,7 +498,19 @@ void WallEKFSLAM::SearchCorrespondObsID(std::vector<ObsInfo>& list_obs_info, int
 		else{
 			int id1 = list_obs_info[correspond_id].matched_lm_id;
 			int id2 = lm_id;
-			if(!list_lm_info[id1].list_lm_observed_simul[id2])	list_lm_info[id2].going_to_be_merged = true;
+			if(!list_lm_info[id1].list_lm_observed_simul[id2]){
+				list_lm_info[id2].was_merged = true;
+				for(int j=0;j<3;j++){
+					if(list_lm_info[id2].observed_range[j][0] < list_lm_info[id1].observed_range[j][0]){
+						list_lm_info[id1].observed_range[j][0] = list_lm_info[id2].observed_range[j][0];
+						list_lm_info[id1].reached_edge[j][0] = list_lm_info[id2].reached_edge[j][0];
+					}
+					if(list_lm_info[id2].observed_range[j][1] > list_lm_info[id1].observed_range[j][1]){
+						list_lm_info[id1].observed_range[j][1] = list_lm_info[id2].observed_range[j][1];
+						list_lm_info[id1].reached_edge[j][1] = list_lm_info[id2].reached_edge[j][1];
+					}
+				}
+			}
 			else if(min_euclidean_dist<list_obs_info[correspond_id].Y.norm()){
 				list_obs_info[correspond_id].matched_lm_id = lm_id;
 				list_obs_info[correspond_id].H = H_correspond;
@@ -596,7 +616,7 @@ bool WallEKFSLAM::CheckNormalIsInward(const Eigen::Vector3d& Ng)
 void WallEKFSLAM::JudgeWallsCanBeObserbed(void)
 {
 	const double small_tolerance = 5.0;
-	const double large_tolerance = 15.0;
+	const double large_tolerance = 10.0;
 	
 	for(size_t i=0;i<list_lm_info.size();i++){
 		Eigen::Vector3d Ng = X.segment(size_robot_state+i*size_wall_state, size_wall_state);
@@ -616,7 +636,22 @@ void WallEKFSLAM::JudgeWallsCanBeObserbed(void)
 			if(Position_in_wall_frame(1)<probable_range[1][0] || Position_in_wall_frame(1)>probable_range[1][1] || Position_in_wall_frame(2)<probable_range[2][0] || Position_in_wall_frame(2)>probable_range[2][1])	list_lm_info[i].available = false;
 			else	list_lm_info[i].available = true;
 		}
+		if(list_lm_info[i].was_merged)	list_lm_info[i].available = false;	//test
 	}
+}
+
+void WallEKFSLAM::PushBackMarkerMatchingLines(const Eigen::Vector3d& P1, const Eigen::Vector3d& P2)
+{
+	geometry_msgs::Point tmp_p1;
+	tmp_p1.x = P1[0];
+	tmp_p1.y = P1[1];
+	tmp_p1.z = P1[2];
+	geometry_msgs::Point tmp_p2;
+	tmp_p2.x = P2[0];
+	tmp_p2.y = P2[1];
+	tmp_p2.z = P2[2];
+	matching_lines.points.push_back(tmp_p1);
+	matching_lines.points.push_back(tmp_p2);
 }
 
 void WallEKFSLAM::ObservationUpdate(const Eigen::VectorXd& Z, const Eigen::VectorXd& H, const Eigen::MatrixXd& jH)
@@ -720,14 +755,61 @@ void WallEKFSLAM::Publication(void)
 	matching_lines.header.stamp = time_imu_now;
 	pub_marker.publish(matching_lines);
 
-	/*wall origins*/
+	/*walls*/
 	geometry_msgs::PoseArray wall_origins;
 	wall_origins.header.frame_id = "/odom";
 	wall_origins.header.stamp = time_imu_now;
-	for(size_t i=0;i<list_lm_info.size();i++)	if(list_lm_info[i].available)	wall_origins.poses.push_back(list_lm_info[i].origin);
-	/* for(size_t i=0;i<list_lm_info.size();i++)	wall_origins.poses.push_back(list_lm_info[i].origin); */
+	/* for(size_t i=0;i<list_lm_info.size();i++)	if(list_lm_info[i].available)	wall_origins.poses.push_back(list_lm_info[i].origin); */
+	planes.markers.clear();
+	for(size_t i=0;i<list_lm_info.size();i++){
+		wall_origins.poses.push_back(list_lm_info[i].origin);
+		PushBackMarkerPlanes(list_lm_info[i]);
+	}
 	pub_posearray.publish(wall_origins);
+	pub_markerarray.publish(planes);
 }
+
+void WallEKFSLAM::PushBackMarkerPlanes(LMInfo lm_info)
+{
+	const double thickness = 0.1;
+	double width = lm_info.observed_range[1][1] - lm_info.observed_range[1][0];
+	double height = lm_info.observed_range[2][1] - lm_info.observed_range[2][0];
+	tf::Quaternion q_origin_orientation;
+	quaternionMsgToTF(lm_info.origin.orientation, q_origin_orientation);
+	tf::Quaternion q_bias(
+		0.0,
+		(lm_info.observed_range[1][1] + lm_info.observed_range[1][0])/2.0,
+		(lm_info.observed_range[2][1] + lm_info.observed_range[2][0])/2.0,
+		0.0
+	);
+	q_bias = q_origin_orientation*q_bias*q_origin_orientation.inverse();
+
+	visualization_msgs::Marker tmp;
+	tmp.header.frame_id = "/odom";
+	tmp.header.stamp = time_imu_now;
+	tmp.ns = "planes";
+	tmp.id = 1;
+	tmp.action = visualization_msgs::Marker::ADD;
+	tmp.pose = lm_info.origin;
+	tmp.pose.position.x -= q_bias.x();
+	tmp.pose.position.y -= q_bias.y();
+	tmp.pose.position.z -= q_bias.z();
+	tmp.type = visualization_msgs::Marker::CUBE;
+	tmp.scale.x = thickness;
+	tmp.scale.y = width;
+	tmp.scale.z = height;
+	tmp.color.r = 1.0;
+	tmp.color.g = 0.0;
+	tmp.color.b = 0.0;
+	tmp.color.a = 1.0;
+
+	planes.markers.push_back(tmp);
+
+	std::cout << "lm_info.observed_range[1][0]: " << lm_info.observed_range[1][0] << std::endl;
+	std::cout << "lm_info.observed_range[1][1]: " << lm_info.observed_range[1][1] << std::endl;
+	std::cout << "tmp.scale: " << tmp.scale << std::endl;
+}
+
 
 geometry_msgs::PoseStamped WallEKFSLAM::StateVectorToPoseStamped(void)
 {
@@ -758,20 +840,6 @@ pcl::PointCloud<pcl::PointXYZ> WallEKFSLAM::StateVectorToPC(void)
 		}
 	}
 	return *pc;
-}
-
-void WallEKFSLAM::PushBackMatchingLine(const Eigen::Vector3d& P1, const Eigen::Vector3d& P2)
-{
-	geometry_msgs::Point tmp_p1;
-	tmp_p1.x = P1[0];
-	tmp_p1.y = P1[1];
-	tmp_p1.z = P1[2];
-	geometry_msgs::Point tmp_p2;
-	tmp_p2.x = P2[0];
-	tmp_p2.y = P2[1];
-	tmp_p2.z = P2[2];
-	matching_lines.points.push_back(tmp_p1);
-	matching_lines.points.push_back(tmp_p2);
 }
 
 Eigen::Matrix3d WallEKFSLAM::GetRotationXYZMatrix(const Eigen::Vector3d& RPY, bool inverse)
