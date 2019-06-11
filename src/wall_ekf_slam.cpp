@@ -458,7 +458,7 @@ void WallEKFSLAM::SearchCorrespondObsID(std::vector<ObsInfo>& list_obs_info, int
 
 		double mahalanobis_dist = Yi.transpose()*Si.inverse()*Yi;
 		double euclidean_dist = Yi.norm();	//test
-		std::cout << "mahalanobis_dist = " << mahalanobis_dist << std::endl;
+		/* std::cout << "mahalanobis_dist = " << mahalanobis_dist << std::endl; */
 		if(std::isnan(mahalanobis_dist)){	//test
 			std::cout << "mahalanobis_dist is NAN" << std::endl;
 			// exit(1);
