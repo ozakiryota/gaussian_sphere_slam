@@ -40,6 +40,7 @@ class WallEKFSLAM{
 			bool is_inward;	//from global origin
 			int count_match;
 			double observed_range[3][2] = {};	//[x, y, z][min, max] in wall frame
+			double probable_range[3][2] = {};	//[x, y, z][negative, positive]
 			bool reached_edge[3][2];	//[x, y, z][negative, positive] in wall frame
 			bool available;
 			std::vector<bool> list_lm_observed_simul;
@@ -615,8 +616,8 @@ bool WallEKFSLAM::CheckNormalIsInward(const Eigen::Vector3d& Ng)
 
 void WallEKFSLAM::JudgeWallsCanBeObserbed(void)
 {
-	const double small_tolerance = 5.0;
-	const double large_tolerance = 10.0;
+	const double small_tolerance = 1;
+	const double large_tolerance = 2;
 	
 	for(size_t i=0;i<list_lm_info.size();i++){
 		Eigen::Vector3d Ng = X.segment(size_robot_state+i*size_wall_state, size_wall_state);
@@ -624,16 +625,15 @@ void WallEKFSLAM::JudgeWallsCanBeObserbed(void)
 		if(list_lm_info[i].is_inward!=CheckNormalIsInward(Ng))	list_lm_info[i].available = false;
 		else{
 			/*set probable range*/
-			double probable_range[3][2];	//[x, y, z][negative, positive]
 			for(int j=1;j<3;j++){	//y,z
-				if(list_lm_info[i].reached_edge[j][0])	probable_range[j][0] = list_lm_info[i].observed_range[j][0] - small_tolerance;
-				else	probable_range[j][0] = list_lm_info[i].observed_range[j][0] - large_tolerance;
-				if(list_lm_info[i].reached_edge[j][1])	probable_range[j][1] = list_lm_info[i].observed_range[j][1] + small_tolerance;
-				else	probable_range[j][1] = list_lm_info[i].observed_range[j][1] + large_tolerance;
+				if(list_lm_info[i].reached_edge[j][0])	list_lm_info[i].probable_range[j][0] = list_lm_info[i].observed_range[j][0] - small_tolerance;
+				else	list_lm_info[i].probable_range[j][0] = list_lm_info[i].observed_range[j][0] - large_tolerance;
+				if(list_lm_info[i].reached_edge[j][1])	list_lm_info[i].probable_range[j][1] = list_lm_info[i].observed_range[j][1] + small_tolerance;
+				else	list_lm_info[i].probable_range[j][1] = list_lm_info[i].observed_range[j][1] + large_tolerance;
 			}
 			/*judge in distance*/
 			Eigen::Vector3d Position_in_wall_frame = PointGlobalToWallFrame(X.segment(0, 3), list_lm_info[i].origin);
-			if(Position_in_wall_frame(1)<probable_range[1][0] || Position_in_wall_frame(1)>probable_range[1][1] || Position_in_wall_frame(2)<probable_range[2][0] || Position_in_wall_frame(2)>probable_range[2][1])	list_lm_info[i].available = false;
+			if(Position_in_wall_frame(1)<list_lm_info[i].probable_range[1][0] || Position_in_wall_frame(1)>list_lm_info[i].probable_range[1][1] || Position_in_wall_frame(2)<list_lm_info[i].probable_range[2][0] || Position_in_wall_frame(2)>list_lm_info[i].probable_range[2][1])	list_lm_info[i].available = false;
 			else	list_lm_info[i].available = true;
 		}
 		if(list_lm_info[i].was_merged)	list_lm_info[i].available = false;	//test
@@ -772,14 +772,14 @@ void WallEKFSLAM::Publication(void)
 void WallEKFSLAM::PushBackMarkerPlanes(LMInfo lm_info)
 {
 	const double thickness = 0.1;
-	double width = lm_info.observed_range[1][1] - lm_info.observed_range[1][0];
-	double height = lm_info.observed_range[2][1] - lm_info.observed_range[2][0];
+	double width = lm_info.probable_range[1][1] - lm_info.probable_range[1][0];
+	double height = lm_info.probable_range[2][1] - lm_info.probable_range[2][0];
 	tf::Quaternion q_origin_orientation;
 	quaternionMsgToTF(lm_info.origin.orientation, q_origin_orientation);
 	tf::Quaternion q_bias(
 		0.0,
-		(lm_info.observed_range[1][1] + lm_info.observed_range[1][0])/2.0,
-		(lm_info.observed_range[2][1] + lm_info.observed_range[2][0])/2.0,
+		(lm_info.probable_range[1][1] + lm_info.probable_range[1][0])/2.0,
+		(lm_info.probable_range[2][1] + lm_info.probable_range[2][0])/2.0,
 		0.0
 	);
 	q_bias = q_origin_orientation*q_bias*q_origin_orientation.inverse();
@@ -807,10 +807,6 @@ void WallEKFSLAM::PushBackMarkerPlanes(LMInfo lm_info)
 	tmp.color.a = 0.5;
 
 	planes.markers.push_back(tmp);
-
-	std::cout << "lm_info.observed_range[1][0]: " << lm_info.observed_range[1][0] << std::endl;
-	std::cout << "lm_info.observed_range[1][1]: " << lm_info.observed_range[1][1] << std::endl;
-	std::cout << "tmp.scale: " << tmp.scale << std::endl;
 }
 
 
