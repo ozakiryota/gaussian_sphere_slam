@@ -390,13 +390,13 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 		}
 	}
 	/*marge LM*/
-	for(int i=0;i<list_lm_info.size();){
-		// if(list_lm_info[i].going_to_be_merged){
-		// 	list_lm_info.erase(list_lm_info.begin() + i);
-        //
-		// }
-		// else i++;
-	}
+	/* for(int i=0;i<list_lm_info.size();){ */
+	/* 	if(list_lm_info[i].going_to_be_merged){ */
+	/* 		list_lm_info.erase(list_lm_info.begin() + i); */
+    /*  */
+	/* 	} */
+	/* 	else i++; */
+	/* } */
 	/*arrange LM info*/
 	const double tolerance = 5.0;
 	for(int i=0;i<list_lm_info.size();i++){
