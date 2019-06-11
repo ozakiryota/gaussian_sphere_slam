@@ -35,12 +35,13 @@ class WallEKFSLAM{
 		struct LMInfo{
 			geometry_msgs::Pose origin;
 			bool is_observed_in_this_scan;
-			bool is_inward;
+			bool is_inward;	//from global origin
 			int count_match;
 			double observed_range[3][2] = {};	//[x, y, z][min, max] in wall frame
-			/* double unobservable_area[3][2];	//[x, y, z][min, max] in wall frame */
 			bool reached_edge[3][2];	//[x, y, z][negative, positive] in wall frame
 			bool available;
+			std::vector<bool> list_lm_observed_simul;
+			bool going_to_be_merged = false;
 		};
 		struct ObsInfo{
 			int matched_lm_id = -1;
@@ -79,7 +80,7 @@ class WallEKFSLAM{
 		void CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr &msg);
 		void SearchCorrespondObsID(std::vector<ObsInfo>& list_obs_info, int lm_id);
 		void Innovation(int lm_id, const Eigen::Vector3d& Z, Eigen::VectorXd& H, Eigen::MatrixXd& jH, Eigen::VectorXd& Y, Eigen::MatrixXd& S);
-		void PushBackWallInfo(const Eigen::Vector3d& Nl);
+		void PushBackLMInfo(const Eigen::Vector3d& Nl);
 		tf::Quaternion GetRotationQuaternionBetweenVectors(const Eigen::Vector3d& Origin, const Eigen::Vector3d& Target);
 		bool CheckNormalIsInward(const Eigen::Vector3d& Ng);
 		void JudgeWallsCanBeObserbed(void);
@@ -343,10 +344,11 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 	JudgeWallsCanBeObserbed();
 
 	int num_wall = (X.size() - size_robot_state)/size_wall_state;
-	/* for(size_t i=0;i<d_gaussian_sphere->points.size();i++){ */
+	/*matching*/
 	for(int i=0;i<num_wall;i++){
 		if(list_lm_info[i].available)	SearchCorrespondObsID(list_obs_info, i);
 	}
+	/*new landmark or update*/
 	for(size_t i=0;i<list_obs_info.size();i++){
 		int lm_id = list_obs_info[i].matched_lm_id;
 		Eigen::Vector3d Nl(
@@ -356,25 +358,30 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 		);
 		if(lm_id==-1){	//new landmark
 			VectorVStack(Xnew, PlaneLocalToGlobal(Nl));
-			PushBackWallInfo(Nl);
+			PushBackLMInfo(Nl);
 		}
 		else{
-			/*update wall info*/
+			/*update lm info*/
 			Eigen::Vector3d Position_in_wall_frame = PointGlobalToWallFrame(X.segment(0, 3), list_lm_info[lm_id].origin);
 			list_lm_info[lm_id].is_observed_in_this_scan = true;
 			list_lm_info[lm_id].count_match += 1;
 			for(int j=0;j<3;j++){
-				if(Position_in_wall_frame(j) < list_lm_info[lm_id].observed_range[j][0])	list_lm_info[lm_id].observed_range[j][0] = Position_in_wall_frame(j);
-				if(Position_in_wall_frame(j) > list_lm_info[lm_id].observed_range[j][1])	list_lm_info[lm_id].observed_range[j][1] = Position_in_wall_frame(j);
+				if(Position_in_wall_frame(j) < list_lm_info[lm_id].observed_range[j][0]){
+					list_lm_info[lm_id].observed_range[j][0] = Position_in_wall_frame(j);
+					list_lm_info[lm_id].reached_edge[j][0] = false;
+				}
+				if(Position_in_wall_frame(j) > list_lm_info[lm_id].observed_range[j][1]){
+					list_lm_info[lm_id].observed_range[j][1] = Position_in_wall_frame(j);
+					list_lm_info[lm_id].reached_edge[j][1] = false;
+				}
 			}
 			/*judge in maching time*/
 			const int threshold_count_match = 3;
 			if(list_lm_info[lm_id].count_match>threshold_count_match)	list_lm_info[lm_id].available = true;
 			else	list_lm_info[lm_id].available = false;
-
 			/*stack*/
 			if(list_lm_info[lm_id].available){
-				PushBackMatchingLine(X.segment(size_robot_state + list_obs_info[i].matched_lm_id*size_wall_state, size_wall_state), PointLocalToGlobal(Nl));
+				PushBackMatchingLine(X.segment(size_robot_state + lm_id*size_wall_state, size_wall_state), PointLocalToGlobal(Nl));
 				VectorVStack(Zstacked, Nl);
 				VectorVStack(Hstacked, list_obs_info[i].H);
 				MatrixVStack(jHstacked, list_obs_info[i].jH);
@@ -383,14 +390,25 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 		}
 	}
 
-	/*update wall info*/
+	/*arrange lm info*/
 	const double tolerance = 5.0;
-	for(int i=0;i<num_wall;i++){
-		Eigen::Vector3d Position_in_wall_frame = PointGlobalToWallFrame(X.segment(0, 3), list_lm_info[i].origin);
-		if(!list_lm_info[i].is_observed_in_this_scan && Position_in_wall_frame(0)<list_lm_info[i].observed_range[0][1]){
-			for(int j=1;j<3;j++){
-				if(Position_in_wall_frame(j) < list_lm_info[j].observed_range[j][0]-tolerance)	list_lm_info[i].reached_edge[j][0] = true;
-				if(Position_in_wall_frame(j) > list_lm_info[j].observed_range[j][1]+tolerance)	list_lm_info[i].reached_edge[j][1] = true;
+	/* for(int i=0;i<num_wall;i++){ */
+	for(int i=0;i<list_lm_info.size();i++){
+		list_lm_info[i].list_lm_observed_simul.resize(list_lm_info.size(), false);	//keeps valuses and inputs "false" into new memories
+		/*update unmached lm info*/
+		if(!list_lm_info[i].is_observed_in_this_scan){
+			Eigen::Vector3d Position_in_wall_frame = PointGlobalToWallFrame(X.segment(0, 3), list_lm_info[i].origin);
+			if(Position_in_wall_frame(0)<list_lm_info[i].observed_range[0][1]){
+				for(int j=1;j<3;j++){
+					if(Position_in_wall_frame(j) < list_lm_info[j].observed_range[j][0]-tolerance)	list_lm_info[i].reached_edge[j][0] = true;
+					if(Position_in_wall_frame(j) > list_lm_info[j].observed_range[j][1]+tolerance)	list_lm_info[i].reached_edge[j][1] = true;
+				}
+			}
+		}
+		/*watched at the same time*/
+		else{
+			for(int j=0;j<list_lm_info.size();j++){
+				if(list_lm_info[j].is_observed_in_this_scan)	list_lm_info[i].list_lm_observed_simul[j] = true;
 			}
 		}
 		/*reset*/
@@ -456,14 +474,24 @@ void WallEKFSLAM::SearchCorrespondObsID(std::vector<ObsInfo>& list_obs_info, int
 
 	if(correspond_id!=-1){
 		if(list_obs_info[correspond_id].matched_lm_id==-1){
-			list_obs_info[correspond_id].matched_lm_id = correspond_id;
+			list_obs_info[correspond_id].matched_lm_id = lm_id;
 			list_obs_info[correspond_id].H = H_correspond;
 			list_obs_info[correspond_id].jH = jH_correspond;
 			list_obs_info[correspond_id].Y = Y_correspond;
 			list_obs_info[correspond_id].S = S_correspond;
 		}
 		else{
-			//同時に観測したことがあるかリストをチェック	
+			//同時に観測したことがあるかリストをチェック
+			int id1 = list_obs_info[correspond_id].matched_lm_id;
+			int id2 = lm_id;
+			if(!list_lm_info[id1].list_lm_observed_simul[id2])	list_lm_info[id2].going_to_be_merged = true;
+			else if(min_euclidean_dist<list_obs_info[correspond_id].Y.norm()){
+				list_obs_info[correspond_id].matched_lm_id = lm_id;
+				list_obs_info[correspond_id].H = H_correspond;
+				list_obs_info[correspond_id].jH = jH_correspond;
+				list_obs_info[correspond_id].Y = Y_correspond;
+				list_obs_info[correspond_id].S = S_correspond;
+			}
 		}
 	}
 }
@@ -510,7 +538,7 @@ void WallEKFSLAM::Innovation(int lm_id, const Eigen::Vector3d& Z, Eigen::VectorX
 	S = jH*P*jH.transpose() + R;
 }
 
-void WallEKFSLAM::PushBackWallInfo(const Eigen::Vector3d& Nl)
+void WallEKFSLAM::PushBackLMInfo(const Eigen::Vector3d& Nl)
 {
 	/*origin-position*/
 	Eigen::Vector3d Pg = PointLocalToGlobal(Nl);
@@ -541,7 +569,7 @@ void WallEKFSLAM::PushBackWallInfo(const Eigen::Vector3d& Nl)
 		tmp.reached_edge[j][1] = false;
 	}
 	tmp.is_inward = CheckNormalIsInward(PlaneLocalToGlobal(Nl));
-	tmp.is_observed_in_this_scan = false;
+	tmp.is_observed_in_this_scan = true;
 	tmp.count_match = 0;
 	list_lm_info.push_back(tmp);
 	
@@ -793,4 +821,14 @@ int main(int argc, char** argv)
 	
 	WallEKFSLAM wall_ekf_slam;
 	ros::spin();
+
+	/*test*/
+	/* std::vector<int> a = {1, 2, 3}; */
+	/* std::cout << "a: "; */
+	/* for(size_t i=0;i<a.size();i++)	std::cout << a[i] << ", "; */
+	/* std::cout << std::endl; */
+	/* a.resize(6, 10); */
+	/* std::cout << "a: "; */
+	/* for(size_t i=0;i<a.size();i++)	std::cout << a[i] << ", "; */
+	/* std::cout << std::endl; */
 }
