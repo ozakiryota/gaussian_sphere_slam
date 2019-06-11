@@ -285,6 +285,14 @@ Visualization Manager:
       Topic: /gyrodometry
       Unreliable: false
       Value: true
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /planes
+      Name: MarkerArray
+      Namespaces:
+        planes: true
+      Queue Size: 100
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 0; 0; 0
