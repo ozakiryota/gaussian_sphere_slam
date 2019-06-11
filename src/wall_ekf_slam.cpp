@@ -616,8 +616,8 @@ bool WallEKFSLAM::CheckNormalIsInward(const Eigen::Vector3d& Ng)
 
 void WallEKFSLAM::JudgeWallsCanBeObserbed(void)
 {
-	const double small_tolerance = 1;
-	const double large_tolerance = 2;
+	const double small_tolerance = 5.0;
+	const double large_tolerance = 10.0;
 	
 	for(size_t i=0;i<list_lm_info.size();i++){
 		Eigen::Vector3d Ng = X.segment(size_robot_state+i*size_wall_state, size_wall_state);
@@ -771,7 +771,7 @@ void WallEKFSLAM::Publication(void)
 
 void WallEKFSLAM::PushBackMarkerPlanes(LMInfo lm_info)
 {
-	const double thickness = 0.1;
+	const double thickness = 0.05;
 	double width = lm_info.probable_range[1][1] - lm_info.probable_range[1][0];
 	double height = lm_info.probable_range[2][1] - lm_info.probable_range[2][0];
 	tf::Quaternion q_origin_orientation;
