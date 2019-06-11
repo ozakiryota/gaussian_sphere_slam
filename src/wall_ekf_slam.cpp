@@ -753,7 +753,7 @@ void WallEKFSLAM::Publication(void)
 
 	/*visualization marker*/
 	matching_lines.header.stamp = time_imu_now;
-	pub_marker.publish(matching_lines);
+	// pub_marker.publish(matching_lines);
 
 	/*walls*/
 	geometry_msgs::PoseArray wall_origins;
@@ -771,7 +771,7 @@ void WallEKFSLAM::Publication(void)
 
 void WallEKFSLAM::PushBackMarkerPlanes(LMInfo lm_info)
 {
-	const double thickness = 0.05;
+	const double thickness = 0.1;
 	double width = lm_info.observed_range[1][1] - lm_info.observed_range[1][0];
 	double height = lm_info.observed_range[2][1] - lm_info.observed_range[2][0];
 	tf::Quaternion q_origin_orientation;
@@ -805,16 +805,27 @@ void WallEKFSLAM::PushBackMarkerPlanes(LMInfo lm_info)
 		tmp.color.r = 1.0;
 		tmp.color.g = 1.0;
 		tmp.color.b = 0.0;
-		tmp.color.a = 0.5;
+		tmp.color.a = 0.9;
 	}
 	else{
-		tmp.color.r = 1.0;
-		tmp.color.g = 1.0;
+		tmp.color.r = 0.0;
+		tmp.color.g = 0.0;
 		tmp.color.b = 1.0;
-		tmp.color.a = 0.5;
+		tmp.color.a = 0.9;
+	}
+	if(fabs(lm_info.origin.orientation.x)>0.5 || fabs(lm_info.origin.orientation.y)>0.5){	//floor
+		tmp.color.r = 0.5;
+		tmp.color.g = 0.5;
+		tmp.color.b = 0.5;
+		tmp.color.a = 0.9;
 	}
 
 	planes.markers.push_back(tmp);
+	
+	std::cout << "------------" << std::endl;
+	std::cout << "lm_info.origin.orientation.x = " << lm_info.origin.orientation.x << std::endl;
+	std::cout << "lm_info.origin.orientation.y = " << lm_info.origin.orientation.y << std::endl;
+	std::cout << "lm_info.origin.orientation.z = " << lm_info.origin.orientation.z << std::endl;
 }
 
 
