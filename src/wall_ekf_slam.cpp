@@ -392,7 +392,6 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 
 	/*arrange lm info*/
 	const double tolerance = 5.0;
-	/* for(int i=0;i<num_wall;i++){ */
 	for(int i=0;i<list_lm_info.size();i++){
 		list_lm_info[i].list_lm_observed_simul.resize(list_lm_info.size(), false);	//keeps valuses and inputs "false" into new memories
 		/*update unmached lm info*/
@@ -405,7 +404,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 				}
 			}
 		}
-		/*watched at the same time*/
+		/*make list of lm watched at the same time*/
 		else{
 			for(int j=0;j<list_lm_info.size();j++){
 				if(list_lm_info[j].is_observed_in_this_scan)	list_lm_info[i].list_lm_observed_simul[j] = true;
@@ -439,6 +438,7 @@ void WallEKFSLAM::SearchCorrespondObsID(std::vector<ObsInfo>& list_obs_info, int
 	const double threshold_euclidean_dist = 0.2;	//test
 	double min_euclidean_dist = threshold_euclidean_dist;	//test
 	int correspond_id = -1;
+	/*search*/
 	for(size_t i=0;i<d_gaussian_sphere->points.size();i++){
 		Eigen::Vector3d Zi(
 			d_gaussian_sphere->points[i].x,
@@ -471,7 +471,7 @@ void WallEKFSLAM::SearchCorrespondObsID(std::vector<ObsInfo>& list_obs_info, int
 		// if(!std::isnan(mahalanobis_dist) && mahalanobis_dist<min_mahalanobis_dist){
 		// }
 	}
-
+	/*input*/
 	if(correspond_id!=-1){
 		if(list_obs_info[correspond_id].matched_lm_id==-1){
 			list_obs_info[correspond_id].matched_lm_id = lm_id;
@@ -481,7 +481,6 @@ void WallEKFSLAM::SearchCorrespondObsID(std::vector<ObsInfo>& list_obs_info, int
 			list_obs_info[correspond_id].S = S_correspond;
 		}
 		else{
-			//同時に観測したことがあるかリストをチェック
 			int id1 = list_obs_info[correspond_id].matched_lm_id;
 			int id2 = lm_id;
 			if(!list_lm_info[id1].list_lm_observed_simul[id2])	list_lm_info[id2].going_to_be_merged = true;
