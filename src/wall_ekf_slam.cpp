@@ -361,7 +361,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 			PushBackLMInfo(Nl);
 		}
 		else{
-			/*update lm info*/
+			/*update LM info*/
 			Eigen::Vector3d Position_in_wall_frame = PointGlobalToWallFrame(X.segment(0, 3), list_lm_info[lm_id].origin);
 			list_lm_info[lm_id].is_observed_in_this_scan = true;
 			list_lm_info[lm_id].count_match += 1;
@@ -389,8 +389,12 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 			}
 		}
 	}
-
-	/*arrange lm info*/
+	/*marge LM*/
+	for(int i=0;i<list_lm_info.size();){
+		if(list_lm_info[i].going_to_be_merged)	list_lm_info.erase(list_lm_info.begin() + i);
+		else i++;
+	}
+	/*arrange LM info*/
 	const double tolerance = 5.0;
 	for(int i=0;i<list_lm_info.size();i++){
 		list_lm_info[i].list_lm_observed_simul.resize(list_lm_info.size(), false);	//keeps valuses and inputs "false" into new memories
@@ -404,7 +408,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 				}
 			}
 		}
-		/*make list of lm watched at the same time*/
+		/*make list of LM watched at the same time*/
 		else{
 			for(int j=0;j<list_lm_info.size();j++){
 				if(list_lm_info[j].is_observed_in_this_scan)	list_lm_info[i].list_lm_observed_simul[j] = true;
@@ -827,6 +831,14 @@ int main(int argc, char** argv)
 	/* for(size_t i=0;i<a.size();i++)	std::cout << a[i] << ", "; */
 	/* std::cout << std::endl; */
 	/* a.resize(6, 10); */
+	/* std::cout << "a: "; */
+	/* for(size_t i=0;i<a.size();i++)	std::cout << a[i] << ", "; */
+	/* std::cout << std::endl; */
+	/* for(size_t i=0;i<a.size();){ */
+	/* 	if(a[i]==2)	a.erase(a.begin()+i); */
+	/* 	else	i++; */
+	/* 	std::cout << "i = " << i << std::endl; */
+	/* } */
 	/* std::cout << "a: "; */
 	/* for(size_t i=0;i<a.size();i++)	std::cout << a[i] << ", "; */
 	/* std::cout << std::endl; */
