@@ -158,7 +158,7 @@ Visualization Manager:
       Marker Topic: /matching_lines
       Name: Marker
       Namespaces:
-        matching_lines: true
+        {}
       Queue Size: 100
       Value: true
     - Class: rviz/TF
@@ -167,8 +167,6 @@ Visualization Manager:
       Frames:
         All Enabled: true
         gyrodometry:
-          Value: true
-        initial_orientation:
           Value: true
         odom:
           Value: true
@@ -182,8 +180,6 @@ Visualization Manager:
       Tree:
         odom:
           gyrodometry:
-            {}
-          initial_orientation:
             {}
           velodyne:
             {}
@@ -325,16 +321,16 @@ Visualization Manager:
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0
-        Y: 0
-        Z: 0
+        X: 0.00105322967
+        Y: 0.000410516484
+        Z: 0.00102057506
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.0500000007
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.00999999978
       Pitch: 1.56979632
-      Target Frame: <Fixed Frame>
+      Target Frame: velodyne
       Value: Orbit (rviz)
       Yaw: 0
     Saved: ~

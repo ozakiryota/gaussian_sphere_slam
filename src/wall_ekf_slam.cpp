@@ -396,17 +396,17 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 		}
 	}
 	/*marge LM*/
-	/* for(int i=0;i<list_lm_info.size();){ */
-	/* 	if(list_lm_info[i].was_merged){ */
-	/* 		list_lm_info.erase(list_lm_info.begin() + i); */
+	// for(int i=0;i<list_lm_info.size();){
+	// 	if(list_lm_info[i].was_merged){
+	// 		list_lm_info.erase(list_lm_info.begin() + i);
 	/* 		Eigen::VectorXd tmp_X = X; */
 	/* 		Eigen::MatrixXd tmp_P = P; */
 	/* 		X.resize(X.size()-size_wall_state); */
 	/* 		X.segment(0, i) = tmp_X.segment(0, i); */
 	/* 		X.segment(i, X.size()-i) = tmp_X.segment(i+1, tmp_X.size()-(i+1)); */
-	/* 	} */
-	/* 	else i++; */
-	/* } */
+	// 	}
+	// 	else i++;
+	// }
 	/*arrange LM info*/
 	const double tolerance = 5.0;
 	for(int i=0;i<list_lm_info.size();i++){
@@ -502,6 +502,8 @@ void WallEKFSLAM::SearchCorrespondObsID(std::vector<ObsInfo>& list_obs_info, int
 			int id1 = list_obs_info[correspond_id].matched_lm_id;
 			int id2 = lm_id;
 			if(!list_lm_info[id1].list_lm_observed_simul[id2]){
+				std::cout << "merged!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1!" << std::endl;
+				// exit(1);	//test
 				list_lm_info[id2].was_merged = true;
 				for(int j=0;j<3;j++){
 					if(list_lm_info[id2].observed_range[j][0] < list_lm_info[id1].observed_range[j][0]){
@@ -601,10 +603,6 @@ void WallEKFSLAM::PushBackLMInfo(const Eigen::Vector3d& Nl)
 	tmp.is_observed_in_this_scan = true;
 	tmp.count_match = 0;
 	list_lm_info.push_back(tmp);
-	
-	/*test*/
-	std::cout << "Nl: " << std::endl << Nl << std::endl;
-	std::cout << "PointGlobalToWallFrame(X.segment(0, 3), tmp.origin): " << std::endl << PointGlobalToWallFrame(X.segment(0, 3), tmp.origin) << std::endl;
 }
 
 bool WallEKFSLAM::CheckNormalIsInward(const Eigen::Vector3d& Ng)
@@ -733,13 +731,14 @@ void WallEKFSLAM::PushBackMarkerPlanes(LMInfo lm_info)
 		/* tmp.color.b = 0.5; */
 		tmp.color.a = 0.2;
 	}
+	if(lm_info.was_merged){
+		tmp.color.r = 0.0;
+		tmp.color.g = 1.0;
+		tmp.color.b = 0.0;
+		tmp.color.a = 0.9;
+	}
 
 	planes.markers.push_back(tmp);
-	
-	std::cout << "------------" << std::endl;
-	std::cout << "lm_info.origin.orientation.x = " << lm_info.origin.orientation.x << std::endl;
-	std::cout << "lm_info.origin.orientation.y = " << lm_info.origin.orientation.y << std::endl;
-	std::cout << "lm_info.origin.orientation.z = " << lm_info.origin.orientation.z << std::endl;
 }
 
 Eigen::Vector3d WallEKFSLAM::PlaneLocalToGlobal(const Eigen::Vector3d& Nl)
