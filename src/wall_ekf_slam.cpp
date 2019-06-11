@@ -90,12 +90,12 @@ class WallEKFSLAM{
 		void JudgeWallsCanBeObserbed(void);
 		void PushBackMarkerMatchingLines(const Eigen::Vector3d& P1, const Eigen::Vector3d& P2);	//visualization
 		void ObservationUpdate(const Eigen::VectorXd& Z, const Eigen::VectorXd& H, const Eigen::MatrixXd& jH);
+		void PushBackMarkerPlanes(LMInfo lm_info);	//visualization
 		Eigen::Vector3d PlaneGlobalToLocal(const Eigen::Vector3d& Ng);
 		Eigen::Vector3d PlaneLocalToGlobal(const Eigen::Vector3d& Nl);
 		Eigen::Vector3d PointLocalToGlobal(const Eigen::Vector3d& Pl);
 		Eigen::Vector3d PointGlobalToWallFrame(const Eigen::Vector3d& Pg, geometry_msgs::Pose origin);
 		void Publication();
-		void PushBackMarkerPlanes(LMInfo lm_info);	//visualization
 		geometry_msgs::PoseStamped StateVectorToPoseStamped(void);
 		pcl::PointCloud<pcl::PointXYZ> StateVectorToPC(void);
 		Eigen::Matrix3d GetRotationXYZMatrix(const Eigen::Vector3d& RPY, bool inverse);
@@ -346,6 +346,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 	Eigen::MatrixXd jHstacked(0, 0);
 
 	matching_lines.points.clear();	//visualization
+	planes.markers.clear();	//visualization
 
 	JudgeWallsCanBeObserbed();
 
@@ -426,6 +427,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 				if(list_lm_info[j].is_observed_in_this_scan)	list_lm_info[i].list_lm_observed_simul[j] = true;
 			}
 		}
+		PushBackMarkerPlanes(list_lm_info[i]);
 		/*reset*/
 		list_lm_info[i].is_observed_in_this_scan = false;
 	}
@@ -675,6 +677,71 @@ Eigen::Vector3d WallEKFSLAM::PlaneGlobalToLocal(const Eigen::Vector3d& Ng)
 	return Nl;
 }
 
+void WallEKFSLAM::PushBackMarkerPlanes(LMInfo lm_info)
+{
+	const double thickness = 0.1;
+	double width = lm_info.observed_range[1][1] - lm_info.observed_range[1][0];
+	double height = lm_info.observed_range[2][1] - lm_info.observed_range[2][0];
+	tf::Quaternion q_origin_orientation;
+	quaternionMsgToTF(lm_info.origin.orientation, q_origin_orientation);
+	tf::Quaternion q_bias(
+		0.0,
+		(lm_info.observed_range[1][1] + lm_info.observed_range[1][0])/2.0,
+		(lm_info.observed_range[2][1] + lm_info.observed_range[2][0])/2.0,
+		0.0
+	);
+	q_bias = q_origin_orientation*q_bias*q_origin_orientation.inverse();
+
+	visualization_msgs::Marker tmp;
+	tmp.header.frame_id = "/odom";
+	tmp.header.stamp = time_imu_now;
+	tmp.ns = "planes";
+	tmp.id = planes.markers.size();
+	tmp.action = visualization_msgs::Marker::ADD;
+	tmp.pose = lm_info.origin;
+	tmp.pose.position.x += q_bias.x();
+	tmp.pose.position.y += q_bias.y();
+	tmp.pose.position.z += q_bias.z();
+	tmp.type = visualization_msgs::Marker::CUBE;
+	tmp.scale.x = thickness;
+	tmp.scale.y = width + 1;
+	tmp.scale.z = height + 1;
+	/* tmp.scale.x = 1.5; */
+	/* tmp.scale.y = 1; */
+	/* tmp.scale.z = 0.5; */
+	if(lm_info.is_observed_in_this_scan){
+		tmp.color.r = 1.0;
+		tmp.color.g = 0.0;
+		tmp.color.b = 0.0;
+		tmp.color.a = 0.9;
+	}
+	else if(lm_info.available){
+		tmp.color.r = 1.0;
+		tmp.color.g = 1.0;
+		tmp.color.b = 0.0;
+		tmp.color.a = 0.9;
+	}
+	else{
+		tmp.color.r = 0.0;
+		tmp.color.g = 0.0;
+		tmp.color.b = 1.0;
+		tmp.color.a = 0.9;
+	}
+	if(fabs(lm_info.origin.orientation.x)>0.5 || fabs(lm_info.origin.orientation.y)>0.5){	//floor
+		/* tmp.color.r = 0.5; */
+		/* tmp.color.g = 0.5; */
+		/* tmp.color.b = 0.5; */
+		tmp.color.a = 0.3;
+	}
+
+	planes.markers.push_back(tmp);
+	
+	std::cout << "------------" << std::endl;
+	std::cout << "lm_info.origin.orientation.x = " << lm_info.origin.orientation.x << std::endl;
+	std::cout << "lm_info.origin.orientation.y = " << lm_info.origin.orientation.y << std::endl;
+	std::cout << "lm_info.origin.orientation.z = " << lm_info.origin.orientation.z << std::endl;
+}
+
 Eigen::Vector3d WallEKFSLAM::PlaneLocalToGlobal(const Eigen::Vector3d& Nl)
 {
 	Eigen::Vector3d rotL = GetRotationXYZMatrix(X.segment(3, 3), false)*Nl;
@@ -760,74 +827,12 @@ void WallEKFSLAM::Publication(void)
 	wall_origins.header.frame_id = "/odom";
 	wall_origins.header.stamp = time_imu_now;
 	/* for(size_t i=0;i<list_lm_info.size();i++)	if(list_lm_info[i].available)	wall_origins.poses.push_back(list_lm_info[i].origin); */
-	planes.markers.clear();
 	for(size_t i=0;i<list_lm_info.size();i++){
 		wall_origins.poses.push_back(list_lm_info[i].origin);
-		PushBackMarkerPlanes(list_lm_info[i]);
 	}
 	pub_posearray.publish(wall_origins);
 	pub_markerarray.publish(planes);
 }
-
-void WallEKFSLAM::PushBackMarkerPlanes(LMInfo lm_info)
-{
-	const double thickness = 0.1;
-	double width = lm_info.observed_range[1][1] - lm_info.observed_range[1][0];
-	double height = lm_info.observed_range[2][1] - lm_info.observed_range[2][0];
-	tf::Quaternion q_origin_orientation;
-	quaternionMsgToTF(lm_info.origin.orientation, q_origin_orientation);
-	tf::Quaternion q_bias(
-		0.0,
-		(lm_info.observed_range[1][1] + lm_info.observed_range[1][0])/2.0,
-		(lm_info.observed_range[2][1] + lm_info.observed_range[2][0])/2.0,
-		0.0
-	);
-	q_bias = q_origin_orientation*q_bias*q_origin_orientation.inverse();
-
-	visualization_msgs::Marker tmp;
-	tmp.header.frame_id = "/odom";
-	tmp.header.stamp = time_imu_now;
-	tmp.ns = "planes";
-	tmp.id = planes.markers.size();
-	tmp.action = visualization_msgs::Marker::ADD;
-	tmp.pose = lm_info.origin;
-	tmp.pose.position.x += q_bias.x();
-	tmp.pose.position.y += q_bias.y();
-	tmp.pose.position.z += q_bias.z();
-	tmp.type = visualization_msgs::Marker::CUBE;
-	tmp.scale.x = thickness;
-	tmp.scale.y = width + 1;
-	tmp.scale.z = height + 1;
-	/* tmp.scale.x = 1.5; */
-	/* tmp.scale.y = 1; */
-	/* tmp.scale.z = 0.5; */
-	if(lm_info.available){
-		tmp.color.r = 1.0;
-		tmp.color.g = 1.0;
-		tmp.color.b = 0.0;
-		tmp.color.a = 0.9;
-	}
-	else{
-		tmp.color.r = 0.0;
-		tmp.color.g = 0.0;
-		tmp.color.b = 1.0;
-		tmp.color.a = 0.9;
-	}
-	if(fabs(lm_info.origin.orientation.x)>0.5 || fabs(lm_info.origin.orientation.y)>0.5){	//floor
-		tmp.color.r = 0.5;
-		tmp.color.g = 0.5;
-		tmp.color.b = 0.5;
-		tmp.color.a = 0.9;
-	}
-
-	planes.markers.push_back(tmp);
-	
-	std::cout << "------------" << std::endl;
-	std::cout << "lm_info.origin.orientation.x = " << lm_info.origin.orientation.x << std::endl;
-	std::cout << "lm_info.origin.orientation.y = " << lm_info.origin.orientation.y << std::endl;
-	std::cout << "lm_info.origin.orientation.z = " << lm_info.origin.orientation.z << std::endl;
-}
-
 
 geometry_msgs::PoseStamped WallEKFSLAM::StateVectorToPoseStamped(void)
 {
