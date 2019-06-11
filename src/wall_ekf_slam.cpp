@@ -704,8 +704,8 @@ void WallEKFSLAM::PushBackMarkerPlanes(LMInfo lm_info)
 	tmp.pose.position.z += q_bias.z();
 	tmp.type = visualization_msgs::Marker::CUBE;
 	tmp.scale.x = thickness;
-	tmp.scale.y = width + 1;
-	tmp.scale.z = height + 1;
+	tmp.scale.y = width + 0.5;
+	tmp.scale.z = height + 0.5;
 	/* tmp.scale.x = 1.5; */
 	/* tmp.scale.y = 1; */
 	/* tmp.scale.z = 0.5; */
@@ -731,7 +731,7 @@ void WallEKFSLAM::PushBackMarkerPlanes(LMInfo lm_info)
 		/* tmp.color.r = 0.5; */
 		/* tmp.color.g = 0.5; */
 		/* tmp.color.b = 0.5; */
-		tmp.color.a = 0.3;
+		tmp.color.a = 0.2;
 	}
 
 	planes.markers.push_back(tmp);
