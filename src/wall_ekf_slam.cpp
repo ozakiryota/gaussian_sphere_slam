@@ -771,7 +771,7 @@ void WallEKFSLAM::Publication(void)
 
 void WallEKFSLAM::PushBackMarkerPlanes(LMInfo lm_info)
 {
-	const double thickness = 10;
+	const double thickness = 0.1;
 	double width = lm_info.observed_range[1][1] - lm_info.observed_range[1][0];
 	double height = lm_info.observed_range[2][1] - lm_info.observed_range[2][0];
 	tf::Quaternion q_origin_orientation;
@@ -788,20 +788,23 @@ void WallEKFSLAM::PushBackMarkerPlanes(LMInfo lm_info)
 	tmp.header.frame_id = "/odom";
 	tmp.header.stamp = time_imu_now;
 	tmp.ns = "planes";
-	tmp.id = 1;
+	tmp.id = planes.markers.size();
 	tmp.action = visualization_msgs::Marker::ADD;
 	tmp.pose = lm_info.origin;
-	tmp.pose.position.x -= q_bias.x();
-	tmp.pose.position.y -= q_bias.y();
-	tmp.pose.position.z -= q_bias.z();
+	tmp.pose.position.x += q_bias.x();
+	tmp.pose.position.y += q_bias.y();
+	tmp.pose.position.z += q_bias.z();
 	tmp.type = visualization_msgs::Marker::CUBE;
 	tmp.scale.x = thickness;
 	tmp.scale.y = width;
 	tmp.scale.z = height;
+	/* tmp.scale.x = 1.5; */
+	/* tmp.scale.y = 1; */
+	/* tmp.scale.z = 0.5; */
 	tmp.color.r = 1.0;
-	tmp.color.g = 0.0;
-	tmp.color.b = 0.0;
-	tmp.color.a = 1.0;
+	tmp.color.g = 1.0;
+	tmp.color.b = 1.0;
+	tmp.color.a = 0.5;
 
 	planes.markers.push_back(tmp);
 
