@@ -772,14 +772,14 @@ void WallEKFSLAM::Publication(void)
 void WallEKFSLAM::PushBackMarkerPlanes(LMInfo lm_info)
 {
 	const double thickness = 0.05;
-	double width = lm_info.probable_range[1][1] - lm_info.probable_range[1][0];
-	double height = lm_info.probable_range[2][1] - lm_info.probable_range[2][0];
+	double width = lm_info.observed_range[1][1] - lm_info.observed_range[1][0];
+	double height = lm_info.observed_range[2][1] - lm_info.observed_range[2][0];
 	tf::Quaternion q_origin_orientation;
 	quaternionMsgToTF(lm_info.origin.orientation, q_origin_orientation);
 	tf::Quaternion q_bias(
 		0.0,
-		(lm_info.probable_range[1][1] + lm_info.probable_range[1][0])/2.0,
-		(lm_info.probable_range[2][1] + lm_info.probable_range[2][0])/2.0,
+		(lm_info.observed_range[1][1] + lm_info.observed_range[1][0])/2.0,
+		(lm_info.observed_range[2][1] + lm_info.observed_range[2][0])/2.0,
 		0.0
 	);
 	q_bias = q_origin_orientation*q_bias*q_origin_orientation.inverse();
@@ -796,8 +796,8 @@ void WallEKFSLAM::PushBackMarkerPlanes(LMInfo lm_info)
 	tmp.pose.position.z += q_bias.z();
 	tmp.type = visualization_msgs::Marker::CUBE;
 	tmp.scale.x = thickness;
-	tmp.scale.y = width;
-	tmp.scale.z = height;
+	tmp.scale.y = width + 1;
+	tmp.scale.z = height + 1;
 	/* tmp.scale.x = 1.5; */
 	/* tmp.scale.y = 1; */
 	/* tmp.scale.z = 0.5; */
