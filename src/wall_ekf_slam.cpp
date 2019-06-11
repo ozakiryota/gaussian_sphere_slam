@@ -801,10 +801,18 @@ void WallEKFSLAM::PushBackMarkerPlanes(LMInfo lm_info)
 	/* tmp.scale.x = 1.5; */
 	/* tmp.scale.y = 1; */
 	/* tmp.scale.z = 0.5; */
-	tmp.color.r = 1.0;
-	tmp.color.g = 1.0;
-	tmp.color.b = 0.0;
-	tmp.color.a = 0.5;
+	if(lm_info.available){
+		tmp.color.r = 1.0;
+		tmp.color.g = 1.0;
+		tmp.color.b = 0.0;
+		tmp.color.a = 0.5;
+	}
+	else{
+		tmp.color.r = 1.0;
+		tmp.color.g = 1.0;
+		tmp.color.b = 1.0;
+		tmp.color.a = 0.5;
+	}
 
 	planes.markers.push_back(tmp);
 }
