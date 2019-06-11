@@ -36,7 +36,7 @@ class WallEKFSLAM{
 		/*struct*/
 		struct LMInfo{
 			geometry_msgs::Pose origin;
-			bool is_observed_in_this_scan;
+			bool was_observed_in_this_scan;
 			bool is_inward;	//from global origin
 			int count_match;
 			double observed_range[3][2] = {};	//[x, y, z][min, max] in wall frame
@@ -370,7 +370,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 		else{
 			/*update LM info*/
 			Eigen::Vector3d Position_in_wall_frame = PointGlobalToWallFrame(X.segment(0, 3), list_lm_info[lm_id].origin);
-			list_lm_info[lm_id].is_observed_in_this_scan = true;
+			list_lm_info[lm_id].was_observed_in_this_scan = true;
 			list_lm_info[lm_id].count_match += 1;
 			for(int j=0;j<3;j++){
 				if(Position_in_wall_frame(j) < list_lm_info[lm_id].observed_range[j][0]){
@@ -412,7 +412,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 	for(int i=0;i<list_lm_info.size();i++){
 		list_lm_info[i].list_lm_observed_simul.resize(list_lm_info.size(), false);	//keeps valuses and inputs "false" into new memories
 		/*update unmached lm info*/
-		if(!list_lm_info[i].is_observed_in_this_scan){
+		if(!list_lm_info[i].was_observed_in_this_scan){
 			Eigen::Vector3d Position_in_wall_frame = PointGlobalToWallFrame(X.segment(0, 3), list_lm_info[i].origin);
 			if(Position_in_wall_frame(0)<list_lm_info[i].observed_range[0][1]){
 				for(int j=1;j<3;j++){
@@ -424,12 +424,12 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 		/*make list of LM watched at the same time*/
 		else{
 			for(int j=0;j<list_lm_info.size();j++){
-				if(list_lm_info[j].is_observed_in_this_scan)	list_lm_info[i].list_lm_observed_simul[j] = true;
+				if(list_lm_info[j].was_observed_in_this_scan)	list_lm_info[i].list_lm_observed_simul[j] = true;
 			}
 		}
 		PushBackMarkerPlanes(list_lm_info[i]);
 		/*reset*/
-		list_lm_info[i].is_observed_in_this_scan = false;
+		list_lm_info[i].was_observed_in_this_scan = false;
 	}
 	/*update*/
 	if(Zstacked.size()>0)	ObservationUpdate(Zstacked, Hstacked, jHstacked);
@@ -600,7 +600,7 @@ void WallEKFSLAM::PushBackLMInfo(const Eigen::Vector3d& Nl)
 		tmp.reached_edge[j][1] = false;
 	}
 	tmp.is_inward = CheckNormalIsInward(PlaneLocalToGlobal(Nl));
-	tmp.is_observed_in_this_scan = true;
+	tmp.was_observed_in_this_scan = true;
 	tmp.count_match = 0;
 	list_lm_info.push_back(tmp);
 }
@@ -707,14 +707,20 @@ void WallEKFSLAM::PushBackMarkerPlanes(LMInfo lm_info)
 	/* tmp.scale.x = 1.5; */
 	/* tmp.scale.y = 1; */
 	/* tmp.scale.z = 0.5; */
-	if(lm_info.is_observed_in_this_scan){
+	if(lm_info.was_observed_in_this_scan){
 		tmp.color.r = 1.0;
 		tmp.color.g = 0.0;
 		tmp.color.b = 0.0;
 		tmp.color.a = 0.9;
 	}
-	else if(lm_info.available){
+	else if(lm_info.was_merged){
 		tmp.color.r = 1.0;
+		tmp.color.g = 1.0;
+		tmp.color.b = 0.0;
+		tmp.color.a = 0.9;
+	}
+	else if(lm_info.available){
+		tmp.color.r = 0.0;
 		tmp.color.g = 1.0;
 		tmp.color.b = 0.0;
 		tmp.color.a = 0.9;
@@ -730,12 +736,6 @@ void WallEKFSLAM::PushBackMarkerPlanes(LMInfo lm_info)
 		/* tmp.color.g = 0.5; */
 		/* tmp.color.b = 0.5; */
 		tmp.color.a = 0.2;
-	}
-	if(lm_info.was_merged){
-		tmp.color.r = 0.0;
-		tmp.color.g = 1.0;
-		tmp.color.b = 0.0;
-		tmp.color.a = 0.9;
 	}
 
 	planes.markers.push_back(tmp);
