@@ -771,7 +771,7 @@ void WallEKFSLAM::Publication(void)
 
 void WallEKFSLAM::PushBackMarkerPlanes(LMInfo lm_info)
 {
-	const double thickness = 0.1;
+	const double thickness = 10;
 	double width = lm_info.observed_range[1][1] - lm_info.observed_range[1][0];
 	double height = lm_info.observed_range[2][1] - lm_info.observed_range[2][0];
 	tf::Quaternion q_origin_orientation;
