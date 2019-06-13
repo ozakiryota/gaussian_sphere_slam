@@ -95,6 +95,7 @@ class WallEKFSLAM{
 		Eigen::Vector3d PlaneLocalToGlobal(const Eigen::Vector3d& Nl);
 		Eigen::Vector3d PointLocalToGlobal(const Eigen::Vector3d& Pl);
 		Eigen::Vector3d PointGlobalToWallFrame(const Eigen::Vector3d& Pg, geometry_msgs::Pose origin);
+		Eigen::Vector3d PointWallFrameToGlobal(const Eigen::Vector3d& Pl, geometry_msgs::Pose origin);
 		void Publication();
 		geometry_msgs::PoseStamped StateVectorToPoseStamped(void);
 		pcl::PointCloud<pcl::PointXYZ> StateVectorToPC(void);
@@ -516,8 +517,8 @@ void WallEKFSLAM::SearchCorrespondObsID(std::vector<ObsInfo>& list_obs_info, int
 					list_lm_info[id2].observed_range[1][1],
 					list_lm_info[id2].observed_range[2][1]
 				);
-				Negative = PointGlobalToWallFrame( PlaneGlobalToLocal(Negative), list_lm_info[id1].origin );	//negative vector of id2 in id1 frame
-				Positive = PointGlobalToWallFrame( PlaneGlobalToLocal(Positive), list_lm_info[id1].origin );	//positive vector of id2 in id1 frame
+				Negative = PointGlobalToWallFrame( PointWallFrameToGlobal(Negative, list_lm_info[id2].origin), list_lm_info[id1].origin );	//negative vector of id2 in id1 frame
+				Positive = PointGlobalToWallFrame( PointWallFrameToGlobal(Positive, list_lm_info[id2].origin), list_lm_info[id1].origin );	//positive vector of id2 in id1 frame
 				for(int j=0;j<3;j++){
 					if(Negative(j)<Positive(j)){
 						observed_range_of_id2_in_id1_frame[j][0] = Negative(j);
@@ -795,6 +796,28 @@ Eigen::Vector3d WallEKFSLAM::PointGlobalToWallFrame(const Eigen::Vector3d& Pg, g
 	Eigen::Vector3d Pl = Eigen::Vector3d(q_pl.x(), q_pl.y(), q_pl.z());
 
 	return Pl;
+}
+
+Eigen::Vector3d WallEKFSLAM::PointWallFrameToGlobal(const Eigen::Vector3d& Pl, geometry_msgs::Pose origin)
+{
+	/*rotation*/
+	tf::Quaternion q_pl(
+		Pl(0),
+		Pl(1),
+		Pl(2),
+		0.0
+	);
+	tf::Quaternion q_origin_orientation;
+	quaternionMsgToTF(origin.orientation, q_origin_orientation);
+	tf::Quaternion q_pg = q_origin_orientation*q_pl*q_origin_orientation.inverse();
+	/*linear*/
+	Eigen::Vector3d Pg(
+		q_pg.x() + origin.position.x,
+		q_pg.y() + origin.position.y,
+		q_pg.z() + origin.position.z
+	);
+
+	return Pg;
 }
 
 void WallEKFSLAM::Publication(void)
