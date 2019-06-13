@@ -64,6 +64,7 @@ class DGaussianSphere{
 };
 
 DGaussianSphere::DGaussianSphere()
+	: nhPrivate("~")
 {
 	sub_pc = nh.subscribe("/velodyne_points", 1, &DGaussianSphere::CallbackPC, this);
 	pub_pc = nh.advertise<sensor_msgs::PointCloud2>("/d_gaussian_sphere_obs", 1);
