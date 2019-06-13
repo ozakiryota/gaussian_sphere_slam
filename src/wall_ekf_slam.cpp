@@ -502,16 +502,40 @@ void WallEKFSLAM::SearchCorrespondObsID(std::vector<ObsInfo>& list_obs_info, int
 			int id1 = list_obs_info[correspond_id].matched_lm_id;
 			int id2 = lm_id;
 			if(!list_lm_info[id1].list_lm_observed_simul[id2]){
-				std::cout << "merged!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1!" << std::endl;
-				// exit(1);	//test
+				std::cout << "merged!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
 				list_lm_info[id2].was_merged = true;
+				/*convert observed range in id2-frame to id1-frame*/
+				double observed_range_of_id2_in_id1_frame[3][2] = {};
+				Eigen::Vector3d Negative(
+					list_lm_info[id2].observed_range[0][0],
+					list_lm_info[id2].observed_range[1][0],
+					list_lm_info[id2].observed_range[2][0]
+				);
+				Eigen::Vector3d Positive(
+					list_lm_info[id2].observed_range[0][1],
+					list_lm_info[id2].observed_range[1][1],
+					list_lm_info[id2].observed_range[2][1]
+				);
+				Negative = PointGlobalToWallFrame( PlaneGlobalToLocal(Negative), list_lm_info[id1].origin );	//negative vector of id2 in id1 frame
+				Positive = PointGlobalToWallFrame( PlaneGlobalToLocal(Positive), list_lm_info[id1].origin );	//positive vector of id2 in id1 frame
 				for(int j=0;j<3;j++){
-					if(list_lm_info[id2].observed_range[j][0] < list_lm_info[id1].observed_range[j][0]){
-						list_lm_info[id1].observed_range[j][0] = list_lm_info[id2].observed_range[j][0];
+					if(Negative(j)<Positive(j)){
+						observed_range_of_id2_in_id1_frame[j][0] = Negative(j);
+						observed_range_of_id2_in_id1_frame[j][1] = Positive(j);
+					}
+					else{
+						observed_range_of_id2_in_id1_frame[j][0] = Positive(j);
+						observed_range_of_id2_in_id1_frame[j][1] = Negative(j);
+					}
+				}
+				/*maerge observed range*/
+				for(int j=0;j<3;j++){
+					if(observed_range_of_id2_in_id1_frame[j][0] < list_lm_info[id1].observed_range[j][0]){
+						list_lm_info[id1].observed_range[j][0] = observed_range_of_id2_in_id1_frame[j][0];
 						list_lm_info[id1].reached_edge[j][0] = list_lm_info[id2].reached_edge[j][0];
 					}
-					if(list_lm_info[id2].observed_range[j][1] > list_lm_info[id1].observed_range[j][1]){
-						list_lm_info[id1].observed_range[j][1] = list_lm_info[id2].observed_range[j][1];
+					if(observed_range_of_id2_in_id1_frame[j][1] > list_lm_info[id1].observed_range[j][1]){
+						list_lm_info[id1].observed_range[j][1] = observed_range_of_id2_in_id1_frame[j][1];
 						list_lm_info[id1].reached_edge[j][1] = list_lm_info[id2].reached_edge[j][1];
 					}
 				}
