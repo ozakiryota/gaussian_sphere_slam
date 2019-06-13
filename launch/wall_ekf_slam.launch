@@ -19,7 +19,7 @@
 		<param name="initial_orientation_is_0001" type="bool" value="true"/>
 	</node>
 	<node pkg="gaussian_sphere_slam" name="d_gaussian_sphere" type="d_gaussian_sphere">
-		<param name="mode_floor_is_used" type="bool" value="false"/>
+		<!-- <param name="mode_floor_is_used" type="bool" value="false"/> -->
 	</node>
 	<node pkg="gaussian_sphere_slam" name="wall_ekf_slam" type="wall_ekf_slam" output="screen"/>
 
