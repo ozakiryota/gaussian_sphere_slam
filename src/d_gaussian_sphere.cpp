@@ -17,6 +17,7 @@ class DGaussianSphere{
 	private:
 		/*node handle*/
 		ros::NodeHandle nh;
+		ros::NodeHandle nhPrivate;
 		/*subscribe*/
 		ros::Subscriber sub_pc;
 		/*publish*/
@@ -34,8 +35,8 @@ class DGaussianSphere{
 		/*objects*/
 		ros::Time time_pub;
 		/*flags*/
-		const bool mode_depth_is_ignored = false;
-		const bool mode_floor_is_used = true;
+		bool mode_depth_is_ignored = false;
+		bool mode_floor_is_used = true;
 		bool mode_pcl_viewer_on = false;
 	public:
 		DGaussianSphere();
@@ -71,6 +72,10 @@ DGaussianSphere::DGaussianSphere()
 	// viewer.setCameraPosition(0.0, 0.0, 50.0, 0.0, 0.0, 0.0);
 	viewer.setCameraPosition(-30.0, 0.0, 10.0, 0.0, 0.0, 1.0);
 	if(!mode_pcl_viewer_on)	viewer.close();
+
+	nhPrivate.param("mode_depth_is_ignored", mode_depth_is_ignored, false);
+	nhPrivate.param("mode_floor_is_used", mode_floor_is_used, true);
+	nhPrivate.param("mode_pcl_viewer_on", mode_pcl_viewer_on, false);
 
 	/*test*/
 	g_vector.x = 0.0;
