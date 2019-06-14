@@ -682,7 +682,8 @@ void WallEKFSLAM::PushBackMarkerMatchingLines(const Eigen::Vector3d& P1, const E
 void WallEKFSLAM::ObservationUpdate(const Eigen::VectorXd& Z, const Eigen::VectorXd& H, const Eigen::MatrixXd& jH)
 {
 	Eigen::VectorXd Y = Z - H;
-	const double sigma = 1.0e-1;
+	// const double sigma = 1.0e-1;
+	const double sigma = 1.2e-1;	//test
 	Eigen::MatrixXd R = sigma*Eigen::MatrixXd::Identity(Z.size(), Z.size());
 	Eigen::MatrixXd S = jH*P*jH.transpose() + R;
 	Eigen::MatrixXd K = P*jH.transpose()*S.inverse();
