@@ -963,22 +963,4 @@ int main(int argc, char** argv)
 	
 	WallEKFSLAM wall_ekf_slam;
 	ros::spin();
-
-	/*test*/
-	/* std::vector<int> a = {1, 2, 3}; */
-	/* std::cout << "a: "; */
-	/* for(size_t i=0;i<a.size();i++)	std::cout << a[i] << ", "; */
-	/* std::cout << std::endl; */
-	/* a.resize(6, 10); */
-	/* std::cout << "a: "; */
-	/* for(size_t i=0;i<a.size();i++)	std::cout << a[i] << ", "; */
-	/* std::cout << std::endl; */
-	/* for(size_t i=0;i<a.size();){ */
-	/* 	if(a[i]==2)	a.erase(a.begin()+i); */
-	/* 	else	i++; */
-	/* 	std::cout << "i = " << i << std::endl; */
-	/* } */
-	/* std::cout << "a: "; */
-	/* for(size_t i=0;i<a.size();i++)	std::cout << a[i] << ", "; */
-	/* std::cout << std::endl; */
 }
