@@ -683,7 +683,8 @@ void WallEKFSLAM::ObservationUpdate(const Eigen::VectorXd& Z, const Eigen::Vecto
 {
 	Eigen::VectorXd Y = Z - H;
 	// const double sigma = 1.0e-1;
-	const double sigma = 1.2e-1;	//test
+	// const double sigma = 1.2e-1;	//using floor
+	const double sigma = 1.0e-0;	//test
 	Eigen::MatrixXd R = sigma*Eigen::MatrixXd::Identity(Z.size(), Z.size());
 	Eigen::MatrixXd S = jH*P*jH.transpose() + R;
 	Eigen::MatrixXd K = P*jH.transpose()*S.inverse();
