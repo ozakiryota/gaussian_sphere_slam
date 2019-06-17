@@ -731,9 +731,6 @@ void WallEKFSLAM::PushBackMarkerPlanes(LMInfo lm_info)
 	tmp.scale.x = thickness;
 	tmp.scale.y = width + 0.5;
 	tmp.scale.z = height + 0.5;
-	/* tmp.scale.x = 1.5; */
-	/* tmp.scale.y = 1; */
-	/* tmp.scale.z = 0.5; */
 	if(lm_info.was_observed_in_this_scan){
 		tmp.color.r = 1.0;
 		tmp.color.g = 0.0;
