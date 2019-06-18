@@ -625,11 +625,15 @@ void WallEKFSLAM::PushBackLMInfo(const Eigen::Vector3d& Nl)
 
 bool WallEKFSLAM::CheckNormalIsInward(const Eigen::Vector3d& Ng)
 {
-	double dist_wall = Ng.norm();
 	Eigen::Vector3d VerticalPosition = X.segment(0, 3).dot(Ng)/Ng.dot(Ng)*Ng;
-	double dist_robot = VerticalPosition.norm();
-	if(dist_robot<dist_wall)	return true;
-	else	return false;
+	double angle = acos(VerticalPosition.dot(Ng)/VerticalPosition.norm()/Ng.norm());
+	if(angle>M_PI)	return true;
+	else{
+		double dist_wall = Ng.norm();
+		double dist_robot = VerticalPosition.norm();
+		if(dist_robot<dist_wall)	return true;
+		else	return false;
+	}
 }
 
 void WallEKFSLAM::JudgeWallsCanBeObserbed(void)
