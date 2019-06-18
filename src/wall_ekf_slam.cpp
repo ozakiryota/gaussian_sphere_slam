@@ -619,6 +619,7 @@ void WallEKFSLAM::PushBackLMInfo(const Eigen::Vector3d& Nl)
 
 	/*push back*/
 	LMInfo tmp;
+	tmp.Ng = PlaneLocalToGlobal(Nl);
 	tmp.Xini = X.segment(0, size_robot_state);
 	tmp.origin.position.x = Pg(0);
 	tmp.origin.position.y = Pg(1);
