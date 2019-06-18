@@ -626,7 +626,6 @@ void WallEKFSLAM::PushBackLMInfo(const Eigen::Vector3d& Nl)
 bool WallEKFSLAM::CheckNormalIsInward(const Eigen::Vector3d& Ng)
 {
 	Eigen::Vector3d VerticalPosition = X.segment(0, 3).dot(Ng)/Ng.dot(Ng)*Ng;
-	if(VerticalPosition.norm()==0)	VerticalPosition = Eigen::Vector3d::Zero();
 	double dot = VerticalPosition.dot(Ng);
 	if(dot<0)	return true;
 	else{
