@@ -641,6 +641,7 @@ void WallEKFSLAM::JudgeWallsCanBeObserbed(void)
 		Eigen::Vector3d Ng = X.segment(size_robot_state+i*size_wall_state, size_wall_state);
 		/*judge in direction of normal*/
 		if(list_lm_info[i].is_inward!=CheckNormalIsInward(Ng))	list_lm_info[i].available = false;
+		else if(list_lm_info[i].was_merged)	list_lm_info[i].available = false;	//test
 		else{
 			/*set probable range*/
 			for(int j=1;j<3;j++){	//y,z
@@ -654,7 +655,6 @@ void WallEKFSLAM::JudgeWallsCanBeObserbed(void)
 			if(Position_in_wall_frame(1)<list_lm_info[i].probable_range[1][0] || Position_in_wall_frame(1)>list_lm_info[i].probable_range[1][1] || Position_in_wall_frame(2)<list_lm_info[i].probable_range[2][0] || Position_in_wall_frame(2)>list_lm_info[i].probable_range[2][1])	list_lm_info[i].available = false;
 			else	list_lm_info[i].available = true;
 		}
-		if(list_lm_info[i].was_merged)	list_lm_info[i].available = false;	//test
 	}
 }
 
@@ -742,8 +742,10 @@ void WallEKFSLAM::UpdateLMInfo(LMInfo& lm_info, int lm_id)
 void WallEKFSLAM::PushBackMarkerPlanes(LMInfo lm_info)
 {
 	const double thickness = 0.1;
-	double width = lm_info.observed_range[1][1] - lm_info.observed_range[1][0];
-	double height = lm_info.observed_range[2][1] - lm_info.observed_range[2][0];
+	/* double width = lm_info.observed_range[1][1] - lm_info.observed_range[1][0]; */
+	/* double height = lm_info.observed_range[2][1] - lm_info.observed_range[2][0]; */
+	double width = lm_info.probable_range[1][1] - lm_info.probable_range[1][0];		//test
+	double height = lm_info.probable_range[2][1] - lm_info.probable_range[2][0];	//test
 	tf::Quaternion q_origin_orientation;
 	quaternionMsgToTF(lm_info.origin.orientation, q_origin_orientation);
 	tf::Quaternion q_bias(
