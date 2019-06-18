@@ -93,7 +93,7 @@ class WallEKFSLAM{
 		void PushBackMarkerMatchingLines(const Eigen::Vector3d& P1, const Eigen::Vector3d& P2);	//visualization
 		void ObservationUpdate(const Eigen::VectorXd& Z, const Eigen::VectorXd& H, const Eigen::MatrixXd& jH);
 		void PushBackMarkerPlanes(LMInfo lm_info);	//visualization
-		void UpdatePlaneOrigin(LMInfo& lm_info, const Eigen::Vector3d Ng);
+		void UpdateLMInfo(LMInfo& lm_info, int lm_id);
 		Eigen::Vector3d PlaneGlobalToLocal(const Eigen::Vector3d& Ng);
 		Eigen::Vector3d PlaneLocalToGlobal(const Eigen::Vector3d& Nl);
 		Eigen::Vector3d PointLocalToGlobal(const Eigen::Vector3d& Pl);
@@ -373,20 +373,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 		}
 		else{
 			/*update LM info*/
-			Eigen::Vector3d Position_in_wall_frame = PointGlobalToWallFrame(X.segment(0, 3), list_lm_info[lm_id].origin);
-			list_lm_info[lm_id].was_observed_in_this_scan = true;
-			list_lm_info[lm_id].count_match += 1;
-			for(int j=0;j<3;j++){
-				if(Position_in_wall_frame(j) < list_lm_info[lm_id].observed_range[j][0]){
-					list_lm_info[lm_id].observed_range[j][0] = Position_in_wall_frame(j);
-					list_lm_info[lm_id].reached_edge[j][0] = false;
-				}
-				if(Position_in_wall_frame(j) > list_lm_info[lm_id].observed_range[j][1]){
-					list_lm_info[lm_id].observed_range[j][1] = Position_in_wall_frame(j);
-					list_lm_info[lm_id].reached_edge[j][1] = false;
-				}
-			}
-			UpdatePlaneOrigin(list_lm_info[lm_id], X.segment(size_robot_state + lm_id*size_wall_state, size_wall_state));
+			UpdateLMInfo(list_lm_info[lm_id], lm_id);
 			/*judge in maching time*/
 			const int threshold_count_match = 3;
 			if(list_lm_info[lm_id].count_match>threshold_count_match)	list_lm_info[lm_id].available = true;
@@ -708,14 +695,29 @@ Eigen::Vector3d WallEKFSLAM::PlaneGlobalToLocal(const Eigen::Vector3d& Ng)
 	return Nl;
 }
 
-void WallEKFSLAM::UpdatePlaneOrigin(LMInfo& lm_info, const Eigen::Vector3d Ng)
+void WallEKFSLAM::UpdateLMInfo(LMInfo& lm_info, int lm_id)
 {
-	/*position*/
+	Eigen::Vector3d Ng = X.segment(size_robot_state + lm_id*size_wall_state, size_wall_state);
+	/*observed range*/
+	Eigen::Vector3d Position_in_wall_frame = PointGlobalToWallFrame(X.segment(0, 3), list_lm_info[lm_id].origin);
+	list_lm_info[lm_id].was_observed_in_this_scan = true;
+	list_lm_info[lm_id].count_match += 1;
+	for(int j=0;j<3;j++){
+		if(Position_in_wall_frame(j) < list_lm_info[lm_id].observed_range[j][0]){
+			list_lm_info[lm_id].observed_range[j][0] = Position_in_wall_frame(j);
+			list_lm_info[lm_id].reached_edge[j][0] = false;
+		}
+		if(Position_in_wall_frame(j) > list_lm_info[lm_id].observed_range[j][1]){
+			list_lm_info[lm_id].observed_range[j][1] = Position_in_wall_frame(j);
+			list_lm_info[lm_id].reached_edge[j][1] = false;
+		}
+	}
+	/*origin-position*/
 	Eigen::Vector3d DeltaVertical = lm_info.Xini.segment(0, 3).dot(Ng)/Ng.dot(Ng)*Ng;
 	Eigen::Vector3d delL = Ng - DeltaVertical;
 	Eigen::Vector3d Nl = GetRotationXYZMatrix(lm_info.Xini.segment(3, 3), true)*delL;
 	Eigen::Vector3d Pg = GetRotationXYZMatrix(lm_info.Xini.segment(3, 3), false)*Nl + lm_info.Xini.segment(0, 3);
-	/*orientation*/
+	/*origin-orientation*/
 	tf::Quaternion q_origin_orientation_old;
 	quaternionMsgToTF(lm_info.origin.orientation, q_origin_orientation_old);
 	// Eigen::Vector3d Pg_old(
