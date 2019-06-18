@@ -626,8 +626,8 @@ void WallEKFSLAM::PushBackLMInfo(const Eigen::Vector3d& Nl)
 bool WallEKFSLAM::CheckNormalIsInward(const Eigen::Vector3d& Ng)
 {
 	Eigen::Vector3d VerticalPosition = X.segment(0, 3).dot(Ng)/Ng.dot(Ng)*Ng;
-	double angle = acos(VerticalPosition.dot(Ng)/VerticalPosition.norm()/Ng.norm());
-	if(angle>M_PI)	return true;
+	double dot = VerticalPosition.dot(Ng);
+	if(dot>=0)	return true;
 	else{
 		double dist_wall = Ng.norm();
 		double dist_robot = VerticalPosition.norm();
