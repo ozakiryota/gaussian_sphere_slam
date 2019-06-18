@@ -747,10 +747,10 @@ void WallEKFSLAM::UpdateLMInfo(LMInfo& lm_info, int lm_id)
 void WallEKFSLAM::PushBackMarkerPlanes(LMInfo lm_info)
 {
 	const double thickness = 0.1;
-	/* double width = lm_info.observed_range[1][1] - lm_info.observed_range[1][0]; */
-	/* double height = lm_info.observed_range[2][1] - lm_info.observed_range[2][0]; */
-	double width = lm_info.probable_range[1][1] - lm_info.probable_range[1][0];		//test
-	double height = lm_info.probable_range[2][1] - lm_info.probable_range[2][0];	//test
+	double width = lm_info.observed_range[1][1] - lm_info.observed_range[1][0];
+	double height = lm_info.observed_range[2][1] - lm_info.observed_range[2][0];
+	/* double width = lm_info.probable_range[1][1] - lm_info.probable_range[1][0];		//test */
+	/* double height = lm_info.probable_range[2][1] - lm_info.probable_range[2][0];	//test */
 	tf::Quaternion q_origin_orientation;
 	quaternionMsgToTF(lm_info.origin.orientation, q_origin_orientation);
 	tf::Quaternion q_bias(
