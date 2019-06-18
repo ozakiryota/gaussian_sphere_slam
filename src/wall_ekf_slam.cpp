@@ -722,6 +722,7 @@ void WallEKFSLAM::UpdatePlaneOrigin(LMInfo& lm_info, const Eigen::Vector3d Ng)
 		lm_info.origin.position.z
 	);
 	double theta = acos(Pg_old.dot(Pg)/Pg_old.norm()/Pg.norm());
+	if(std::isnan(theta))	theta = 0.0;
 	Eigen::Vector3d Axis = Pg_old.cross(Pg);
 	Axis.normalize();
 	tf::Quaternion q_rotation(sin(theta/2.0)*Axis(0), sin(theta/2.0)*Axis(1), sin(theta/2.0)*Axis(2), cos(theta/2.0));
