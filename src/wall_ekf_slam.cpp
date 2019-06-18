@@ -35,7 +35,6 @@ class WallEKFSLAM{
 		const int size_wall_state = 3;	//x, y, z (Local)
 		/*struct*/
 		struct LMInfo{
-			Eigen::Vector3d Ng;
 			Eigen::VectorXd Xini;
 			geometry_msgs::Pose origin;
 			bool was_observed_in_this_scan;
@@ -619,7 +618,7 @@ void WallEKFSLAM::PushBackLMInfo(const Eigen::Vector3d& Nl)
 
 	/*push back*/
 	LMInfo tmp;
-	tmp.Ng = PlaneLocalToGlobal(Nl);
+	tmp.Xini = X.segment(0, size_robot_state);
 	tmp.origin.position.x = Pg(0);
 	tmp.origin.position.y = Pg(1);
 	tmp.origin.position.z = Pg(2);
