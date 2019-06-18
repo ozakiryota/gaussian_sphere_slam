@@ -385,6 +385,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 					list_lm_info[lm_id].reached_edge[j][1] = false;
 				}
 			}
+			UpdatePlaneOrigin(list_lm_info[lm_id], X.segment(size_robot_state + lm_id*size_wall_state, size_wall_state));
 			/*judge in maching time*/
 			const int threshold_count_match = 3;
 			if(list_lm_info[lm_id].count_match>threshold_count_match)	list_lm_info[lm_id].available = true;
@@ -430,7 +431,6 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 				if(list_lm_info[j].was_observed_in_this_scan)	list_lm_info[i].list_lm_observed_simul[j] = true;
 			}
 		}
-		UpdatePlaneOrigin(list_lm_info[i], X.segment(size_robot_state + i*size_wall_state, size_wall_state));
 		PushBackMarkerPlanes(list_lm_info[i]);
 		/*reset*/
 		list_lm_info[i].was_observed_in_this_scan = false;
