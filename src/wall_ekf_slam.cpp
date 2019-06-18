@@ -698,10 +698,11 @@ Eigen::Vector3d WallEKFSLAM::PlaneGlobalToLocal(const Eigen::Vector3d& Ng)
 void WallEKFSLAM::UpdateLMInfo(LMInfo& lm_info, int lm_id)
 {
 	Eigen::Vector3d Ng = X.segment(size_robot_state + lm_id*size_wall_state, size_wall_state);
-	/*observed range*/
-	Eigen::Vector3d Position_in_wall_frame = PointGlobalToWallFrame(X.segment(0, 3), list_lm_info[lm_id].origin);
+	/*count*/
 	list_lm_info[lm_id].was_observed_in_this_scan = true;
 	list_lm_info[lm_id].count_match += 1;
+	/*observed range*/
+	Eigen::Vector3d Position_in_wall_frame = PointGlobalToWallFrame(X.segment(0, 3), list_lm_info[lm_id].origin);
 	for(int j=0;j<3;j++){
 		if(Position_in_wall_frame(j) < list_lm_info[lm_id].observed_range[j][0]){
 			list_lm_info[lm_id].observed_range[j][0] = Position_in_wall_frame(j);
