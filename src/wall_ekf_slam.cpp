@@ -35,6 +35,7 @@ class WallEKFSLAM{
 		const int size_wall_state = 3;	//x, y, z (Local)
 		/*struct*/
 		struct LMInfo{
+			Eigen::Vector3d Ng;
 			Eigen::VectorXd Xini;
 			geometry_msgs::Pose origin;
 			bool was_observed_in_this_scan;
@@ -716,18 +717,19 @@ void WallEKFSLAM::UpdatePlaneOrigin(LMInfo& lm_info, const Eigen::Vector3d Ng)
 	/*orientation*/
 	tf::Quaternion q_origin_orientation_old;
 	quaternionMsgToTF(lm_info.origin.orientation, q_origin_orientation_old);
-	Eigen::Vector3d Pg_old(
-		lm_info.origin.position.x,
-		lm_info.origin.position.y,
-		lm_info.origin.position.z
-	);
-	double theta = acos(Pg_old.dot(Pg)/Pg_old.norm()/Pg.norm());
+	// Eigen::Vector3d Pg_old(
+	// 	lm_info.origin.position.x,
+	// 	lm_info.origin.position.y,
+	// 	lm_info.origin.position.z
+	// );
+	double theta = acos(lm_info.Ng.dot(Ng)/lm_info.Ng.norm()/Ng.norm());
 	if(std::isnan(theta))	theta = 0.0;
-	Eigen::Vector3d Axis = Pg_old.cross(Pg);
+	Eigen::Vector3d Axis = lm_info.Ng.cross(Ng);
 	Axis.normalize();
 	tf::Quaternion q_rotation(sin(theta/2.0)*Axis(0), sin(theta/2.0)*Axis(1), sin(theta/2.0)*Axis(2), cos(theta/2.0));
 	q_rotation.normalize();
 	/*input*/
+	lm_info.Ng = Ng;
 	lm_info.origin.position.x = Pg(0);
 	lm_info.origin.position.y = Pg(1);
 	lm_info.origin.position.z = Pg(2);
