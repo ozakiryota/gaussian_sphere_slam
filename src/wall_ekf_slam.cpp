@@ -35,6 +35,8 @@ class WallEKFSLAM{
 		const int size_wall_state = 3;	//x, y, z (Local)
 		/*struct*/
 		struct LMInfo{
+			Eigen::Vector3d Ng;
+			Eigen::VectorXd Xini;
 			geometry_msgs::Pose origin;
 			bool was_observed_in_this_scan;
 			bool is_inward;	//from global origin
@@ -91,6 +93,7 @@ class WallEKFSLAM{
 		void PushBackMarkerMatchingLines(const Eigen::Vector3d& P1, const Eigen::Vector3d& P2);	//visualization
 		void ObservationUpdate(const Eigen::VectorXd& Z, const Eigen::VectorXd& H, const Eigen::MatrixXd& jH);
 		void PushBackMarkerPlanes(LMInfo lm_info);	//visualization
+		void UpdatePlaneOrigin(LMInfo& lm_info, const Eigen::Vector3d Ng);
 		Eigen::Vector3d PlaneGlobalToLocal(const Eigen::Vector3d& Ng);
 		Eigen::Vector3d PlaneLocalToGlobal(const Eigen::Vector3d& Nl);
 		Eigen::Vector3d PointLocalToGlobal(const Eigen::Vector3d& Pl);
@@ -428,6 +431,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 				if(list_lm_info[j].was_observed_in_this_scan)	list_lm_info[i].list_lm_observed_simul[j] = true;
 			}
 		}
+		UpdatePlaneOrigin(list_lm_info[i], X.segment(size_robot_state + i*size_wall_state, size_wall_state));
 		PushBackMarkerPlanes(list_lm_info[i]);
 		/*reset*/
 		list_lm_info[i].was_observed_in_this_scan = false;
@@ -615,6 +619,7 @@ void WallEKFSLAM::PushBackLMInfo(const Eigen::Vector3d& Nl)
 
 	/*push back*/
 	LMInfo tmp;
+	tmp.Ng = PlaneLocalToGlobal(Nl);
 	tmp.origin.position.x = Pg(0);
 	tmp.origin.position.y = Pg(1);
 	tmp.origin.position.z = Pg(2);
@@ -700,6 +705,33 @@ Eigen::Vector3d WallEKFSLAM::PlaneGlobalToLocal(const Eigen::Vector3d& Ng)
 	Eigen::Vector3d delL = Ng - DeltaVertical;
 	Eigen::Vector3d Nl = GetRotationXYZMatrix(X.segment(3, 3), true)*delL;
 	return Nl;
+}
+
+void WallEKFSLAM::UpdatePlaneOrigin(LMInfo& lm_info, const Eigen::Vector3d Ng)
+{
+	/*position*/
+	Eigen::Vector3d DeltaVertical = lm_info.Xini.segment(0, 3).dot(Ng)/Ng.dot(Ng)*Ng;
+	Eigen::Vector3d delL = Ng - DeltaVertical;
+	Eigen::Vector3d Nl = GetRotationXYZMatrix(lm_info.Xini.segment(3, 3), true)*delL;
+	Eigen::Vector3d Pg = GetRotationXYZMatrix(lm_info.Xini.segment(3, 3), false)*Nl + lm_info.Xini.segment(0, 3);
+	/*orientation*/
+	tf::Quaternion q_origin_orientation_old;
+	quaternionMsgToTF(lm_info.origin.orientation, q_origin_orientation_old);
+	Eigen::Vector3d Pg_old(
+		lm_info.origin.position.x,
+		lm_info.origin.position.y,
+		lm_info.origin.position.z
+	);
+	double theta = acos(Pg_old.dot(Pg)/Pg_old.norm()/Pg.norm());
+	Eigen::Vector3d Axis = Pg_old.cross(Pg);
+	Axis.normalize();
+	tf::Quaternion q_rotation(sin(theta/2.0)*Axis(0), sin(theta/2.0)*Axis(1), sin(theta/2.0)*Axis(2), cos(theta/2.0));
+	q_rotation.normalize();
+	/*input*/
+	lm_info.origin.position.x = Pg(0);
+	lm_info.origin.position.y = Pg(1);
+	lm_info.origin.position.z = Pg(2);
+	quaternionTFToMsg((q_rotation*q_origin_orientation_old).normalized(), lm_info.origin.orientation);
 }
 
 void WallEKFSLAM::PushBackMarkerPlanes(LMInfo lm_info)
