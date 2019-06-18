@@ -732,14 +732,6 @@ void WallEKFSLAM::UpdatePlaneOrigin(LMInfo& lm_info, const Eigen::Vector3d Ng)
 	lm_info.origin.position.y = Pg(1);
 	lm_info.origin.position.z = Pg(2);
 	quaternionTFToMsg((q_rotation*q_origin_orientation_old).normalized(), lm_info.origin.orientation);
-
-	/*test*/
-	/* double rpy[3]; */
-	/* tf::Matrix3x3(q_rotation).getRPY(rpy[0], rpy[1], rpy[2]); */
-	if(std::isnan(theta)){
-		std::cout << "theta is NAN" << std::endl;
-		exit(1);
-	}
 }
 
 void WallEKFSLAM::PushBackMarkerPlanes(LMInfo lm_info)
