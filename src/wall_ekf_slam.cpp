@@ -360,7 +360,6 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 		if(list_lm_info[i].available)	SearchCorrespondObsID(list_obs_info, i);
 	}
 	/*new landmark or update*/
-	bool test_flag = true;
 	for(size_t i=0;i<list_obs_info.size();i++){
 		int lm_id = list_obs_info[i].matched_lm_id;
 		Eigen::Vector3d Nl(
@@ -387,11 +386,8 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 				MatrixVStack(jHstacked, list_obs_info[i].jH);
 				
 				/*test*/
-				if(test_flag){
-					Innovation(lm_id, Nl, list_obs_info[i].H, list_obs_info[i].jH, list_obs_info[i].Y, list_obs_info[i].S);
-					ObservationUpdate(Nl, list_obs_info[i].H, list_obs_info[i].jH);
-					test_flag = false;
-				}
+				Innovation(lm_id, Nl, list_obs_info[i].H, list_obs_info[i].jH, list_obs_info[i].Y, list_obs_info[i].S);
+				ObservationUpdate(Nl, list_obs_info[i].H, list_obs_info[i].jH);
 			}
 		}
 	}
