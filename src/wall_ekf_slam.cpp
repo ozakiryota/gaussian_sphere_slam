@@ -213,16 +213,18 @@ void WallEKFSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 				0,	sin(r_)/cos(p_),	cos(r_)/cos(p_);
 
 	/*F*/
-	Eigen::VectorXd F(size_robot_state);
+	Eigen::VectorXd F(X.size());
 	F.segment(0, 3) = X.segment(0, 3);
 	F.segment(3, 3) = X.segment(3, 3) + Rot_rpy*Drpy;
 	for(int i=3;i<6;i++)	F(i) = PiToPi(F(i));
+	F.segment(size_robot_state, num_wall*size_wall_state) = X.segment(size_robot_state, num_wall*size_wall_state);
 
 	/*jF*/
-	Eigen::MatrixXd jF = Eigen::MatrixXd::Zero(size_robot_state, size_robot_state);
+	Eigen::MatrixXd jF = Eigen::MatrixXd::Zero(X.size(), X.size());
 	/*jF-xyz*/
 	jF.block(0, 0, 3, 3) = Eigen::Matrix3d::Identity();
 	jF.block(0, 3, 3, 3) = Eigen::Matrix3d::Zero();
+	jF.block(0, size_robot_state, 3, num_wall*size_wall_state) = Eigen::MatrixXd::Zero(3, num_wall*size_wall_state);
 	/*jF-rpy*/
 	jF.block(3, 0, 3, 3) = Eigen::Matrix3d::Zero();
 	jF(3, 3) = 1 + cos(r_)*tan(p_)*delta_p - sin(r_)*tan(p_)*delta_y;
@@ -234,15 +236,19 @@ void WallEKFSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 	jF(5, 3) = cos(r_)/cos(p_)*delta_p - sin(r_)/cos(p_)*delta_y;
 	jF(5, 4) = sin(r_)*sin(p_)/cos(p_)/cos(p_)*delta_p + cos(r_)*sin(p_)/cos(p_)/cos(p_)*delta_y;
 	jF(5, 5) = 1;
+	jF.block(3, size_robot_state, 3, num_wall*size_wall_state) = Eigen::MatrixXd::Zero(3, num_wall*size_wall_state);
+	/*jF-wall_xyz*/
+	jF.block(size_robot_state, size_robot_state, num_wall*size_wall_state, num_wall*size_wall_state) = Eigen::MatrixXd::Identity(num_wall*size_wall_state, num_wall*size_wall_state);
 	
 	/*Q*/
 	const double sigma = 1.0e-4;
-	Eigen::MatrixXd Q = sigma*Eigen::MatrixXd::Identity(size_robot_state, size_robot_state);
+	Eigen::MatrixXd Q = sigma*Eigen::MatrixXd::Identity(X.size(), X.size());
 	Q.block(0, 0, 3, 3) = Eigen::MatrixXd::Zero(3, 3);
+	Q.block(size_robot_state, size_robot_state, num_wall*size_wall_state, num_wall*size_wall_state) = Eigen::MatrixXd::Zero(num_wall*size_wall_state, num_wall*size_wall_state);
 	
 	/*Update*/
-	X.segment(0, size_robot_state) = F;
-	P.block(0, 0, size_robot_state, size_robot_state) = jF*P.block(0, 0, size_robot_state, size_robot_state)*jF.transpose() + Q;
+	X = F;
+	P = jF*P*jF.transpose() + Q;
 
 	/* std::cout << "X =" << std::endl << X << std::endl; */
 	/* std::cout << "P =" << std::endl << P << std::endl; */
@@ -285,12 +291,13 @@ void WallEKFSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 	int num_wall = (X.size() - size_robot_state)/size_wall_state;
 
 	/*F*/
-	Eigen::VectorXd F(size_robot_state);
+	Eigen::VectorXd F(X.size());
 	F.segment(0, 3) = X.segment(0, 3) + GetRotationXYZMatrix(X.segment(3, 3), false)*Dxyz;
 	F.segment(3, 3) = X.segment(3, 3);
+	F.segment(size_robot_state, num_wall*size_wall_state) = X.segment(size_robot_state, num_wall*size_wall_state);
 
 	/*jF*/
-	Eigen::MatrixXd jF = Eigen::MatrixXd::Zero(size_robot_state, size_robot_state);
+	Eigen::MatrixXd jF = Eigen::MatrixXd::Zero(X.size(), X.size());
 	/*jF-xyz*/
 	jF.block(0, 0, 3, 3) = Eigen::Matrix3d::Identity();
 	jF(0, 3) = Dxyz(1)*(cos(r_)*sin(p_)*cos(y_) + sin(r_)*sin(y_)) + Dxyz(2)*(-sin(r_)*sin(p_)*cos(y_) + cos(r_)*sin(y_));
@@ -302,14 +309,19 @@ void WallEKFSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 	jF(2, 3) = Dxyz(1)*(cos(r_)*cos(p_)) + Dxyz(2)*(-sin(r_)*cos(p_)) ;
 	jF(2, 4) = Dxyz(0)*(-cos(p_)) + Dxyz(1)*(-sin(r_)*sin(p_)) + Dxyz(2)*(-cos(r_)*sin(p_)) ;
 	jF(2, 5) = 0;
+	jF.block(0, size_robot_state, 3, num_wall*size_wall_state) = Eigen::MatrixXd::Zero(3, num_wall*size_wall_state);
 	/*jF-rpy*/
 	jF.block(3, 0, 3, 3) = Eigen::Matrix3d::Zero();
 	jF.block(3, 3, 3, 3) = Eigen::Matrix3d::Identity();
+	jF.block(3, size_robot_state, 3, num_wall*size_wall_state) = Eigen::MatrixXd::Zero(3, num_wall*size_wall_state);
+	/*jF-wall_xyz*/
+	jF.block(size_robot_state, size_robot_state, num_wall*size_wall_state, num_wall*size_wall_state) = Eigen::MatrixXd::Identity(num_wall*size_wall_state, num_wall*size_wall_state);
 
 	/*Q*/
 	const double sigma = 1.0e-4;
-	Eigen::MatrixXd Q = sigma*Eigen::MatrixXd::Identity(size_robot_state, size_robot_state);
+	Eigen::MatrixXd Q = sigma*Eigen::MatrixXd::Identity(X.size(), X.size());
 	Q.block(3, 3, 3, 3) = Eigen::MatrixXd::Zero(3, 3);
+	Q.block(size_robot_state, size_robot_state, num_wall*size_wall_state, num_wall*size_wall_state) = Eigen::MatrixXd::Zero(num_wall*size_wall_state, num_wall*size_wall_state);
 	
 	/* std::cout << "X =" << std::endl << X << std::endl; */
 	/* std::cout << "P =" << std::endl << P << std::endl; */
@@ -317,8 +329,8 @@ void WallEKFSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 	/* std::cout << "F =" << std::endl << F << std::endl; */
 	
 	/*Update*/
-	X.segment(0, size_robot_state) = F;
-	P.block(0, 0, size_robot_state, size_robot_state) = jF*P.block(0, 0, size_robot_state, size_robot_state)*jF.transpose() + Q;
+	X = F;
+	P = jF*P*jF.transpose() + Q;
 }
 
 void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr &msg)
