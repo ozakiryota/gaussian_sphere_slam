@@ -384,8 +384,6 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 				VectorVStack(Zstacked, Nl);
 				VectorVStack(Hstacked, list_obs_info[i].H);
 				MatrixVStack(jHstacked, list_obs_info[i].jH);
-				
-				ObservationUpdate(Nl, list_obs_info[i].H, list_obs_info[i].jH);	//test
 			}
 		}
 	}
@@ -426,7 +424,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 		list_lm_info[i].was_observed_in_this_scan = false;
 	}
 	/*update*/
-	/* if(Zstacked.size()>0)	ObservationUpdate(Zstacked, Hstacked, jHstacked); */
+	if(Zstacked.size()>0)	ObservationUpdate(Zstacked, Hstacked, jHstacked);
 	/*Registration of new walls*/
 	X.conservativeResize(X.size() + Xnew.size());
 	X.segment(X.size() - Xnew.size(), Xnew.size()) = Xnew;
