@@ -223,7 +223,6 @@ void WallEKFSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 	/*jF-xyz*/
 	jF.block(0, 0, 3, 3) = Eigen::Matrix3d::Identity();
 	jF.block(0, 3, 3, 3) = Eigen::Matrix3d::Zero();
-	jF.block(0, size_robot_state, 3, num_wall*size_wall_state) = Eigen::MatrixXd::Zero(3, num_wall*size_wall_state);
 	/*jF-rpy*/
 	jF.block(3, 0, 3, 3) = Eigen::Matrix3d::Zero();
 	jF(3, 3) = 1 + cos(r_)*tan(p_)*delta_p - sin(r_)*tan(p_)*delta_y;
@@ -235,7 +234,6 @@ void WallEKFSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 	jF(5, 3) = cos(r_)/cos(p_)*delta_p - sin(r_)/cos(p_)*delta_y;
 	jF(5, 4) = sin(r_)*sin(p_)/cos(p_)/cos(p_)*delta_p + cos(r_)*sin(p_)/cos(p_)/cos(p_)*delta_y;
 	jF(5, 5) = 1;
-	jF.block(3, size_robot_state, 3, num_wall*size_wall_state) = Eigen::MatrixXd::Zero(3, num_wall*size_wall_state);
 	
 	/*Q*/
 	const double sigma = 1.0e-4;
@@ -304,11 +302,9 @@ void WallEKFSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 	jF(2, 3) = Dxyz(1)*(cos(r_)*cos(p_)) + Dxyz(2)*(-sin(r_)*cos(p_)) ;
 	jF(2, 4) = Dxyz(0)*(-cos(p_)) + Dxyz(1)*(-sin(r_)*sin(p_)) + Dxyz(2)*(-cos(r_)*sin(p_)) ;
 	jF(2, 5) = 0;
-	jF.block(0, size_robot_state, 3, num_wall*size_wall_state) = Eigen::MatrixXd::Zero(3, num_wall*size_wall_state);
 	/*jF-rpy*/
 	jF.block(3, 0, 3, 3) = Eigen::Matrix3d::Zero();
 	jF.block(3, 3, 3, 3) = Eigen::Matrix3d::Identity();
-	jF.block(3, size_robot_state, 3, num_wall*size_wall_state) = Eigen::MatrixXd::Zero(3, num_wall*size_wall_state);
 
 	/*Q*/
 	const double sigma = 1.0e-4;
