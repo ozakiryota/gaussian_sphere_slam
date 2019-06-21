@@ -61,6 +61,7 @@ class WallEKFSLAM{
 		sensor_msgs::Imu bias;
 		pcl::PointCloud<pcl::InterestPoint>::Ptr d_gaussian_sphere {new pcl::PointCloud<pcl::InterestPoint>};
 		std::vector<LMInfo> list_lm_info;
+		std::vector<LMInfo> list_erased_lm_info;
 		/*flags*/
 		bool inipose_is_available = false;
 		bool bias_is_available = false;
@@ -95,8 +96,9 @@ class WallEKFSLAM{
 		void JudgeWallsCanBeObserbed(void);
 		void PushBackMarkerMatchingLines(const Eigen::Vector3d& P1, const Eigen::Vector3d& P2);	//visualization
 		void ObservationUpdate(const Eigen::VectorXd& Z, const Eigen::VectorXd& H, const Eigen::MatrixXd& jH, const Eigen::VectorXd& Diag_sigma);
-		void PushBackMarkerPlanes(LMInfo lm_info);	//visualization
 		void UpdateLMInfo(int lm_id);
+		void PushBackMarkerPlanes(LMInfo lm_info);	//visualization
+		void EraseLM(int index);
 		Eigen::Vector3d PlaneGlobalToLocal(const Eigen::Vector3d& Ng);
 		Eigen::Vector3d PlaneLocalToGlobal(const Eigen::Vector3d& Nl);
 		Eigen::Vector3d PointLocalToGlobal(const Eigen::Vector3d& Pl);
@@ -484,27 +486,11 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 	P = sigma*Eigen::MatrixXd::Identity(X.size(), X.size());
 	P.block(0, 0, Ptmp.rows(), Ptmp.cols()) = Ptmp;
 	/*delete marged LM*/
-	for(int i=0;i<list_lm_info.size();){
-		if(list_lm_info[i].was_merged){
-			list_lm_info.erase(list_lm_info.begin() + i);
-			/*delmit point*/
-			int delimit_point = size_robot_state + i*size_wall_state;
-			int delimit_point_ = size_robot_state + (i+1)*size_wall_state;
-			/*X*/
-			Eigen::VectorXd tmp_X = X;
-			X.resize(X.size() - size_wall_state);
-			X.segment(0, delimit_point) = tmp_X.segment(0, delimit_point);
-			X.segment(delimit_point, X.size() - delimit_point) = tmp_X.segment(delimit_point_, tmp_X.size() - delimit_point_);
-			/*P*/
-			Eigen::MatrixXd tmp_P = P;
-			P.resize(P.cols() - size_wall_state, P.rows() - size_wall_state);
-			P.block(0, 0, delimit_point, delimit_point) = tmp_P.block(0, 0, delimit_point, delimit_point);
-			P.block(0, delimit_point, delimit_point, P.cols()-delimit_point) = tmp_P.block(0, delimit_point_, delimit_point_, P.cols()-delimit_point_);
-			P.block(delimit_point, 0, P.rows()-delimit_point, delimit_point) = tmp_P.block(delimit_point_, 0, P.rows()-delimit_point_, delimit_point_);
-			P.block(delimit_point, delimit_point, P.rows()-delimit_point, P.cols()-delimit_point) = tmp_P.block(delimit_point_, delimit_point_, P.rows()-delimit_point_, P.cols()-delimit_point_);
-		}
+	for(size_t i=0;i<list_lm_info.size();){
+		if(list_lm_info[i].was_merged)	EraseLM(i);
 		else i++;
 	}
+	for(size_t i=0;i<list_erased_lm_info.size();i++)	PushBackMarkerPlanes(list_erased_lm_info[i]);
 
 	Publication();
 }
@@ -877,6 +863,29 @@ void WallEKFSLAM::PushBackMarkerPlanes(LMInfo lm_info)
 	}
 
 	planes.markers.push_back(tmp);
+}
+
+void WallEKFSLAM::EraseLM(int index)
+{
+	/*keep*/
+	list_erased_lm_info.push_back(list_lm_info[index]);
+	/*list*/
+	list_lm_info.erase(list_lm_info.begin() + index);
+	/*delmit point*/
+	int delimit_point = size_robot_state + index*size_wall_state;
+	int delimit_point_ = size_robot_state + (index+1)*size_wall_state;
+	/*X*/
+	Eigen::VectorXd tmp_X = X;
+	X.resize(X.size() - size_wall_state);
+	X.segment(0, delimit_point) = tmp_X.segment(0, delimit_point);
+	X.segment(delimit_point, X.size() - delimit_point) = tmp_X.segment(delimit_point_, tmp_X.size() - delimit_point_);
+	/*P*/
+	Eigen::MatrixXd tmp_P = P;
+	P.resize(P.cols() - size_wall_state, P.rows() - size_wall_state);
+	P.block(0, 0, delimit_point, delimit_point) = tmp_P.block(0, 0, delimit_point, delimit_point);
+	P.block(0, delimit_point, delimit_point, P.cols()-delimit_point) = tmp_P.block(0, delimit_point_, delimit_point_, P.cols()-delimit_point_);
+	P.block(delimit_point, 0, P.rows()-delimit_point, delimit_point) = tmp_P.block(delimit_point_, 0, P.rows()-delimit_point_, delimit_point_);
+	P.block(delimit_point, delimit_point, P.rows()-delimit_point, P.cols()-delimit_point) = tmp_P.block(delimit_point_, delimit_point_, P.rows()-delimit_point_, P.cols()-delimit_point_);
 }
 
 Eigen::Vector3d WallEKFSLAM::PlaneLocalToGlobal(const Eigen::Vector3d& Nl)
