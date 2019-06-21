@@ -103,7 +103,6 @@ class WallEKFSLAM{
 		geometry_msgs::PoseStamped StateVectorToPoseStamped(void);
 		pcl::PointCloud<pcl::PointXYZ> StateVectorToPC(void);
 		Eigen::Matrix3d GetRotationXYZMatrix(const Eigen::Vector3d& RPY, bool inverse);
-		void VectorAppend(Eigen::VectorXd& A, double add);
 		void VectorVStack(Eigen::VectorXd& A, const Eigen::VectorXd& B);
 		void MatrixVStack(Eigen::MatrixXd& A, const Eigen::MatrixXd& B);
 		geometry_msgs::Quaternion QuatEigenToMsg(Eigen::Quaterniond q_eigen);
@@ -387,7 +386,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 				VectorVStack(Hstacked, list_obs_info[i].H);
 				MatrixVStack(jHstacked, list_obs_info[i].jH);
 				double tmp_sigma = 0.5*100/(double)d_gaussian_sphere->points[i].strength;
-				VectorAppend(Diag_sigma, tmp_sigma);
+				VectorVStack(Diag_sigma, Eigen::Vector3d(tmp_sigma, tmp_sigma, tmp_sigma));
 				
 				/*test*/
 				// Innovation(lm_id, Nl, list_obs_info[i].H, list_obs_info[i].jH, list_obs_info[i].Y, list_obs_info[i].S);
@@ -975,12 +974,6 @@ Eigen::Matrix3d WallEKFSLAM::GetRotationXYZMatrix(const Eigen::Vector3d& RPY, bo
 
 	if(!inverse)	return Rot_xyz;
 	else	return Rot_xyz_inv;	//=Rot_xyz.transpose()
-}
-
-void WallEKFSLAM::VectorAppend(Eigen::VectorXd& A, double add)
-{
-	A.conservativeResize(A.size() + 1);
-	A(A.size()- 1) = add;
 }
 
 void WallEKFSLAM::VectorVStack(Eigen::VectorXd& A, const Eigen::VectorXd& B)
