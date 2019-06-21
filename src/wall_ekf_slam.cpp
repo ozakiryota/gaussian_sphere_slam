@@ -454,16 +454,17 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 	for(int i=0;i<list_lm_info.size();){
 		if(list_lm_info[i].was_merged){
 			list_lm_info.erase(list_lm_info.begin() + i);
-			Eigen::VectorXd tmp_X = X;
-			Eigen::MatrixXd tmp_P = P;
+			/*delmit point*/
 			int delimit_point = size_robot_state + i*size_wall_state;
 			int delimit_point_ = size_robot_state + (i+1)*size_wall_state;
 			/*X*/
+			Eigen::VectorXd tmp_X = X;
 			X.resize(X.size() - size_wall_state);
 			X.segment(0, delimit_point) = tmp_X.segment(0, delimit_point);
 			X.segment(delimit_point, X.size() - delimit_point) = tmp_X.segment(delimit_point_, tmp_X.size() - delimit_point_);
 			/*P*/
-			P.resize(X.size() - size_wall_state, X.size() - size_wall_state);
+			Eigen::MatrixXd tmp_P = P;
+			P.resize(P.cols() - size_wall_state, P.rows() - size_wall_state);
 			P.block(0, 0, delimit_point, delimit_point) = tmp_P.block(0, 0, delimit_point, delimit_point);
 			P.block(0, delimit_point, delimit_point, P.cols()-delimit_point) = tmp_P.block(0, delimit_point_, delimit_point_, P.cols()-delimit_point_);
 			P.block(delimit_point, 0, P.rows()-delimit_point, delimit_point) = tmp_P.block(delimit_point_, 0, P.rows()-delimit_point_, delimit_point_);
