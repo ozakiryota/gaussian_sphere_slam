@@ -81,13 +81,14 @@ class WallEKFSLAM{
 		void CallbackBias(const sensor_msgs::ImuConstPtr& msg);
 		void CallbackIMU(const sensor_msgs::ImuConstPtr& msg);
 		void PredictionIMU(sensor_msgs::Imu imu, double dt);
+		void ObservationIMU(sensor_msgs::Imu imu);
 		void CallbackOdom(const nav_msgs::OdometryConstPtr& msg);
 		void PredictionOdom(nav_msgs::Odometry odom, double dt);
 		void CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr &msg);
 		void SearchCorrespondObsID(std::vector<ObsInfo>& list_obs_info, int lm_id);
 		void Innovation(int lm_id, const Eigen::Vector3d& Z, Eigen::VectorXd& H, Eigen::MatrixXd& jH, Eigen::VectorXd& Y, Eigen::MatrixXd& S);
 		void PushBackLMInfo(const Eigen::Vector3d& Nl);
-		tf::Quaternion GetRotationQuaternionBetweenVectors(const Eigen::Vector3d& Origin, const Eigen::Vector3d& Target);
+		/* tf::Quaternion GetRotationQuaternionBetweenVectors(const Eigen::Vector3d& Origin, const Eigen::Vector3d& Target); */
 		bool CheckNormalIsInward(const Eigen::Vector3d& Ng);
 		void JudgeWallsCanBeObserbed(void);
 		void PushBackMarkerMatchingLines(const Eigen::Vector3d& P1, const Eigen::Vector3d& P2);	//visualization
@@ -178,7 +179,10 @@ void WallEKFSLAM::CallbackIMU(const sensor_msgs::ImuConstPtr& msg)
 	}
 	time_imu_last = time_imu_now;
 	if(first_callback_imu)	dt = 0.0;
-	else if(inipose_is_available)	PredictionIMU(*msg, dt);
+	else if(inipose_is_available){
+		PredictionIMU(*msg, dt);
+		ObservationIMU(*msg);
+	}
 	
 	Publication();
 
@@ -253,6 +257,48 @@ void WallEKFSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 	/* std::cout << "X =" << std::endl << X << std::endl; */
 	/* std::cout << "P =" << std::endl << P << std::endl; */
 	/* std::cout << "jF =" << std::endl << jF << std::endl; */
+}
+
+void WallEKFSLAM::ObservationIMU(sensor_msgs::Imu imu)
+{
+	Eigen::Vector3d RPY = X.segment(3, 3);
+	/*Z*/
+	Eigen::Vector3d Z(
+		-imu.linear_acceleration.x,
+		-imu.linear_acceleration.y,
+		-imu.linear_acceleration.z
+	);
+
+	cos(RPY(1))*cos(RPY(2)),										cos(RPY(1))*sin(RPY(2)),										-sin(RPY(1)),
+	sin(RPY(0))*sin(RPY(1))*cos(RPY(2)) - cos(RPY(0))*sin(RPY(2)),	sin(RPY(0))*sin(RPY(1))*sin(RPY(2)) + cos(RPY(0))*cos(RPY(2)),	sin(RPY(0))*cos(RPY(1)),
+	cos(RPY(0))*sin(RPY(1))*cos(RPY(2)) + sin(RPY(0))*sin(RPY(2)),	cos(RPY(0))*sin(RPY(1))*sin(RPY(2)) - sin(RPY(0))*cos(RPY(2)),	cos(RPY(0))*cos(RPY(1));
+
+	/*H*/
+	Eigen::Vector3d G(0, 0, -9.80665);
+	Eigen::Vector3d H = GetRotationXYZMatrix(RPY, true)*G;
+	/*jH*/
+	Eigen::MatrixXd jH = Eigen::MatrixXd::Zero(Z.size(), X.size());
+	/*dH/d(RPY)*/
+	jH(0, 3) = 0;
+	jH(0, 4) = G(0)*( -sin(RPY(1))*cos(RPY(2)) ) + G(1)*( -sin(RPY(1))*sin(RPY(2)) ) + G(2)*( -cos(RPY(1)) );
+	jH(0, 5) = G(0)*( -cos(RPY(1))*sin(RPY(2)) ) + G(1)*( cos(RPY(1))*cos(RPY(2)) );
+	jH(1, 3) = G(0)*( cos(RPY(0))*sin(RPY(1))*cos(RPY(2)) + sin(RPY(0))*sin(RPY(2)) ) + G(1)*( cos(RPY(0))*sin(RPY(1))*sin(RPY(2)) - sin(RPY(0))*cos(RPY(2)) ) + G(2)*( cos(RPY(0))*cos(RPY(1)) );
+	jH(1, 4) = G(0)*( sin(RPY(0))*cos(RPY(1))*cos(RPY(2)) ) + G(1)*( sin(RPY(0))*cos(RPY(1))*sin(RPY(2)) ) + G(2)*( -sin(RPY(0))*sin(RPY(1)) );
+	jH(1, 5) = G(0)*( -sin(RPY(0))*sin(RPY(1))*sin(RPY(2)) - cos(RPY(0))*cos(RPY(2)) ) + G(1)*( sin(RPY(0))*sin(RPY(1))*cos(RPY(2)) - cos(RPY(0))*sin(RPY(2)) );
+	jH(2, 3) = G(0)*( -sin(RPY(0))*sin(RPY(1))*cos(RPY(2)) + cos(RPY(0))*sin(RPY(2)) ) + G(1)*( -sin(RPY(0))*sin(RPY(1))*sin(RPY(2)) - cos(RPY(0))*cos(RPY(2)) ) + G(2)*( -sin(RPY(0))*cos(RPY(1)) );
+	jH(2, 4) = G(0)*( cos(RPY(0))*cos(RPY(1))*cos(RPY(2)) ) + G(1)*( cos(RPY(0))*cos(RPY(1))*sin(RPY(2)) ) + G(2)*( -cos(RPY(0))*sin(RPY(1)) );
+	jH(2, 5) = G(0)*( -cos(RPY(0))*sin(RPY(1))*sin(RPY(2)) + sin(RPY(0))*cos(RPY(2)) ) + G(1)*( cos(RPY(0))*sin(RPY(1))*cos(RPY(2)) + sin(RPY(0))*sin(RPY(2)) );
+	/*R*/
+	const double sigma = 1.0e-2;
+	Eigen::MatrixXd R = sigma*Eigen::MatrixXd::Identity(Z.size(), Z.size());
+	/*Y, S, K, I*/
+	Eigen::VectorXd Y = Z - H;
+	Eigen::MatrixXd S = jH*P*jH.transpose() + R;
+	Eigen::MatrixXd K = P*jH.transpose()*S.inverse();
+	Eigen::MatrixXd I = Eigen::MatrixXd::Identity(X.size(), X.size());
+	/*update*/
+	X = X + K*Y;
+	P = (I - K*jH)*P;
 }
 
 void WallEKFSLAM::CallbackOdom(const nav_msgs::OdometryConstPtr& msg)
