@@ -66,6 +66,8 @@ class WallEKFSLAM{
 		bool bias_is_available = false;
 		bool first_callback_imu = true;
 		bool first_callback_odom = true;
+		/*counter*/
+		int counter_imu = 0;
 		/*time*/
 		ros::Time time_imu_now;
 		ros::Time time_imu_last;
@@ -165,7 +167,6 @@ void WallEKFSLAM::CallbackBias(const sensor_msgs::ImuConstPtr& msg)
 	}
 }
 
-int counter_imu = 0;
 void WallEKFSLAM::CallbackIMU(const sensor_msgs::ImuConstPtr& msg)
 {
 	/* std::cout << "Callback IMU" << std::endl; */
@@ -181,13 +182,13 @@ void WallEKFSLAM::CallbackIMU(const sensor_msgs::ImuConstPtr& msg)
 	time_imu_last = time_imu_now;
 	if(first_callback_imu)	dt = 0.0;
 	else if(inipose_is_available){
+		/*angular velocity*/
 		PredictionIMU(*msg, dt);
-
+		/*linear acceleration*/
 		counter_imu++;
 		const int rate = 100;
 		if(counter_imu==rate)	ObservationIMU(*msg);
-		counter_imu %= rate;
-		
+		counter_imu %= rate;	
 	}
 	
 	Publication();
@@ -745,8 +746,8 @@ void WallEKFSLAM::ObservationUpdate(const Eigen::VectorXd& Z, const Eigen::Vecto
 	// const double sigma = 1.0e-1;
 	// const double sigma = 1.2e-1;	//using floor
 	const double sigma = 1.0e-1;	//test
-	Eigen::MatrixXd R = sigma*Eigen::MatrixXd::Identity(Z.size(), Z.size());
-	R = Diag_sigma.asDiagonal();
+	// Eigen::MatrixXd R = sigma*Eigen::MatrixXd::Identity(Z.size(), Z.size());
+	Eigen::MatrixXd R = Diag_sigma.asDiagonal();
 	Eigen::MatrixXd S = jH*P*jH.transpose() + R;
 	Eigen::MatrixXd K = P*jH.transpose()*S.inverse();
 	X = X + K*Y;
