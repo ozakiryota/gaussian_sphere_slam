@@ -165,6 +165,7 @@ void WallEKFSLAM::CallbackBias(const sensor_msgs::ImuConstPtr& msg)
 	}
 }
 
+int counter_imu = 0;
 void WallEKFSLAM::CallbackIMU(const sensor_msgs::ImuConstPtr& msg)
 {
 	/* std::cout << "Callback IMU" << std::endl; */
@@ -181,7 +182,12 @@ void WallEKFSLAM::CallbackIMU(const sensor_msgs::ImuConstPtr& msg)
 	if(first_callback_imu)	dt = 0.0;
 	else if(inipose_is_available){
 		PredictionIMU(*msg, dt);
-		ObservationIMU(*msg);
+
+		counter_imu++;
+		const int rate = 100;
+		if(counter_imu==rate)	ObservationIMU(*msg);
+		counter_imu %= rate;
+		
 	}
 	
 	Publication();
@@ -261,6 +267,8 @@ void WallEKFSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 
 void WallEKFSLAM::ObservationIMU(sensor_msgs::Imu imu)
 {
+	std::cout << "Observation IMU---------------" << std::endl;
+
 	Eigen::Vector3d RPY = X.segment(3, 3);
 	/*Z*/
 	Eigen::Vector3d Z(
@@ -289,7 +297,7 @@ void WallEKFSLAM::ObservationIMU(sensor_msgs::Imu imu)
 	jH(2, 4) = G(0)*( cos(RPY(0))*cos(RPY(1))*cos(RPY(2)) ) + G(1)*( cos(RPY(0))*cos(RPY(1))*sin(RPY(2)) ) + G(2)*( -cos(RPY(0))*sin(RPY(1)) );
 	jH(2, 5) = G(0)*( -cos(RPY(0))*sin(RPY(1))*sin(RPY(2)) + sin(RPY(0))*cos(RPY(2)) ) + G(1)*( cos(RPY(0))*sin(RPY(1))*cos(RPY(2)) + sin(RPY(0))*sin(RPY(2)) );
 	/*R*/
-	const double sigma = 1.0e-2;
+	const double sigma = 1.0e-1;
 	Eigen::MatrixXd R = sigma*Eigen::MatrixXd::Identity(Z.size(), Z.size());
 	/*Y, S, K, I*/
 	Eigen::VectorXd Y = Z - H;
@@ -431,8 +439,9 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 				VectorVStack(Zstacked, Nl);
 				VectorVStack(Hstacked, list_obs_info[i].H);
 				MatrixVStack(jHstacked, list_obs_info[i].jH);
-				double tmp_sigma = 0.5*100/(double)d_gaussian_sphere->points[i].strength;
+				double tmp_sigma = 0.2*100/(double)d_gaussian_sphere->points[i].strength;
 				VectorVStack(Diag_sigma, Eigen::Vector3d(tmp_sigma, tmp_sigma, tmp_sigma));
+				std::cout << "tmp_sigma = " << tmp_sigma << std::endl;
 				
 				/*test*/
 				// Innovation(lm_id, Nl, list_obs_info[i].H, list_obs_info[i].jH, list_obs_info[i].Y, list_obs_info[i].S);
