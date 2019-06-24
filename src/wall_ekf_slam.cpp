@@ -41,12 +41,14 @@ class WallEKFSLAM{
 			bool was_observed_in_this_scan;
 			bool is_inward;	//from global origin
 			int count_match;
+			int count_nomatch;
 			double observed_range[3][2] = {};	//[x, y, z][min, max] in wall frame
 			double probable_range[3][2] = {};	//[x, y, z][negative, positive]
 			bool reached_edge[3][2];	//[x, y, z][negative, positive] in wall frame
 			bool available;
 			std::vector<bool> list_lm_observed_simul;
 			bool was_merged = false;
+			bool was_erased = false;
 		};
 		struct ObsInfo{
 			int matched_lm_id = -1;
@@ -433,7 +435,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 			/*update LM info*/
 			UpdateLMInfo(lm_id);
 			/*judge in maching time*/
-			const int threshold_count_match = 3;
+			const int threshold_count_match = 5;
 			if(list_lm_info[lm_id].count_match>threshold_count_match)	list_lm_info[lm_id].available = true;
 			else	list_lm_info[lm_id].available = false;
 			/*stack*/
@@ -458,6 +460,12 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 		list_lm_info[i].list_lm_observed_simul.resize(list_lm_info.size(), false);	//keeps valuses and inputs "false" into new memories
 		/*update unmached lm info*/
 		if(!list_lm_info[i].was_observed_in_this_scan){
+			/*count no-match*/
+			list_lm_info[i].count_nomatch++;
+			const int threshold_count_match = 5;
+			const int threshold_count_nomatch = 50;
+			if(list_lm_info[i].count_match<threshold_count_match && list_lm_info[i].count_nomatch>threshold_count_nomatch)	list_lm_info[i].was_erased = true;
+			/*observed range*/
 			Eigen::Vector3d Position_in_wall_frame = PointGlobalToWallFrame(X.segment(0, 3), list_lm_info[i].origin);
 			if(Position_in_wall_frame(0)<list_lm_info[i].observed_range[0][1]){
 				for(int j=1;j<3;j++){
@@ -487,7 +495,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 	P.block(0, 0, Ptmp.rows(), Ptmp.cols()) = Ptmp;
 	/*delete marged LM*/
 	for(size_t i=0;i<list_lm_info.size();){
-		if(list_lm_info[i].was_merged)	EraseLM(i);
+		if(list_lm_info[i].was_merged || list_lm_info[i].was_erased)	EraseLM(i);
 		else i++;
 	}
 	for(size_t i=0;i<list_erased_lm_info.size();i++)	PushBackMarkerPlanes(list_erased_lm_info[i]);
@@ -834,6 +842,12 @@ void WallEKFSLAM::PushBackMarkerPlanes(LMInfo lm_info)
 	if(lm_info.was_observed_in_this_scan){
 		tmp.color.r = 1.0;
 		tmp.color.g = 0.0;
+		tmp.color.b = 0.0;
+		tmp.color.a = 0.9;
+	}
+	else if(lm_info.was_erased){
+		tmp.color.r = 1.0;
+		tmp.color.g = 1.0;
 		tmp.color.b = 0.0;
 		tmp.color.a = 0.9;
 	}
