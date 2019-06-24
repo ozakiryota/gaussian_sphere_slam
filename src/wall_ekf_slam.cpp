@@ -40,8 +40,8 @@ class WallEKFSLAM{
 			geometry_msgs::Pose origin;
 			bool was_observed_in_this_scan;
 			bool is_inward;	//from global origin
-			int count_match;
-			int count_nomatch;
+			int count_match = 0;
+			int count_nomatch = 0;
 			double observed_range[3][2] = {};	//[x, y, z][min, max] in wall frame
 			double probable_range[3][2] = {};	//[x, y, z][negative, positive]
 			bool reached_edge[3][2];	//[x, y, z][negative, positive] in wall frame
@@ -848,7 +848,7 @@ void WallEKFSLAM::PushBackMarkerPlanes(LMInfo lm_info)
 	else if(lm_info.was_erased){
 		tmp.color.r = 1.0;
 		tmp.color.g = 1.0;
-		tmp.color.b = 0.0;
+		tmp.color.b = 1.0;
 		tmp.color.a = 0.9;
 	}
 	else if(lm_info.was_merged){
