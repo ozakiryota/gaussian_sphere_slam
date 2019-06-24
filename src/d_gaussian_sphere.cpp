@@ -286,7 +286,8 @@ void DGaussianSphere::ClusterDGauss(void)
 	// const double cluster_distance = 0.1;
 	const double cluster_distance = 0.1;
 	// const int min_num_cluster_belongings = 20;
-	const int min_num_cluster_belongings = 30;
+	/* const int min_num_cluster_belongings = 30; */
+	const int min_num_cluster_belongings = 40;	//outside
 	pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
 	tree->setInputCloud(d_gaussian_sphere);
 	std::vector<pcl::PointIndices> cluster_indices;
