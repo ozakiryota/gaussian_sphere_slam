@@ -466,7 +466,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 			/*count no-match*/
 			list_lm_info[i].count_nomatch++;
 			const int threshold_count_match = 5;
-			const int threshold_count_nomatch = 100;
+			const int threshold_count_nomatch = 1000;
 			if(list_lm_info[i].count_match<threshold_count_match && list_lm_info[i].count_nomatch>threshold_count_nomatch)	list_lm_info[i].was_erased = true;
 			/*observed range*/
 			Eigen::Vector3d Position_in_wall_frame = PointGlobalToWallFrame(X.segment(0, 3), list_lm_info[i].origin);
