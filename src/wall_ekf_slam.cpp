@@ -448,6 +448,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 				VectorVStack(Hstacked, list_obs_info[i].H);
 				MatrixVStack(jHstacked, list_obs_info[i].jH);
 				double tmp_sigma = 0.2*100/(double)d_gaussian_sphere->points[i].strength;
+				/* tmp_sigma *= 0.1*list_lm_info[lm_id].count_match; */
 				VectorVStack(Diag_sigma, Eigen::Vector3d(tmp_sigma, tmp_sigma, tmp_sigma));
 				std::cout << "tmp_sigma = " << tmp_sigma << std::endl;
 				
