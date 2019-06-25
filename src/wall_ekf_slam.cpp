@@ -331,7 +331,7 @@ void WallEKFSLAM::CallbackOdom(const nav_msgs::OdometryConstPtr& msg)
 	}
 	time_odom_last = time_odom_now;
 	if(first_callback_odom)	dt = 0.0;
-	else	PredictionOdom(*msg, dt);
+	else if(inipose_is_available)	PredictionOdom(*msg, dt);
 	
 	Publication();
 
@@ -488,7 +488,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 		list_lm_info[i].was_observed_in_this_scan = false;
 	}
 	/*update*/
-	if(Zstacked.size()>0)	ObservationUpdate(Zstacked, Hstacked, jHstacked, Diag_sigma);
+	if(Zstacked.size()>0 && inipose_is_available)	ObservationUpdate(Zstacked, Hstacked, jHstacked, Diag_sigma);
 	/*Registration of new walls*/
 	X.conservativeResize(X.size() + Xnew.size());
 	X.segment(X.size() - Xnew.size(), Xnew.size()) = Xnew;
