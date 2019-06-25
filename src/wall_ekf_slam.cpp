@@ -551,6 +551,12 @@ void WallEKFSLAM::SearchCorrespondObsID(std::vector<ObsInfo>& list_obs_info, int
 			S_correspond = Si;
 		}
 		// if(!std::isnan(mahalanobis_dist) && mahalanobis_dist<min_mahalanobis_dist){
+		// 	min_mahalanobis_dist = mahalanobis_dist;
+		// 	correspond_id = i;
+		// 	H_correspond = Hi;
+		// 	jH_correspond = jHi;
+		// 	Y_correspond = Yi;
+		// 	S_correspond = Si;
 		// }
 	}
 	/*input*/
