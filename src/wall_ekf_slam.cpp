@@ -194,7 +194,7 @@ void WallEKFSLAM::CallbackIMU(const sensor_msgs::ImuConstPtr& msg)
 		/*linear acceleration*/
 		counter_imu++;
 		const int rate = 100;
-		if(counter_imu==rate)	ObservationIMU(*msg);
+		// if(counter_imu==rate)	ObservationIMU(*msg);
 		counter_imu %= rate;	
 	}
 	
