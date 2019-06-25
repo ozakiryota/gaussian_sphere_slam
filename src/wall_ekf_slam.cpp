@@ -559,6 +559,7 @@ void WallEKFSLAM::SearchCorrespondObsID(std::vector<ObsInfo>& list_obs_info, int
 		// 	S_correspond = Si;
 		// }
 	}
+	std::cout << "mahalanobis_dist = " << Y_correspond.transpose()*S_correspond.inverse()*Y_correspond << std::endl;
 	/*input*/
 	if(correspond_id!=-1){
 		if(list_obs_info[correspond_id].matched_lm_id==-1){
