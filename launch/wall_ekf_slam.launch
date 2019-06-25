@@ -20,10 +20,11 @@
 	</node>
 	<node pkg="gaussian_sphere_slam" name="d_gaussian_sphere" type="d_gaussian_sphere">
 		<param name="mode_floor_is_used" type="bool" value="false"/>
+		<!-- <param name="mode_pcl_viewer_on" type="bool" value="false"/> -->
 	</node>
 	<node pkg="gaussian_sphere_slam" name="wall_ekf_slam" type="wall_ekf_slam" output="screen"/>
 
-	<!-- comparisons	 -->
+	<!-- comparisons -->
 	<node pkg="gyrodometry" name="gyrodometry3d" type="gyrodometry3d" output="screen">
 		<remap from="/odom" to="/tinypower/odom/republished"/>
 	</node>
@@ -33,7 +34,7 @@
 		<remap from="/odom/change_axis" to="/loamvelodyne_odometry"/>
 	</node>
 
-	<!-- visualize -->
+	<!-- for visualize trajectory -->
 	<node pkg="msg_conversion" type="posestamped_to_odometry" name="posestamped_to_odometry">
 		<remap from="/pose" to="/pose_wall_ekf_slam"/>
 	</node>

@@ -75,7 +75,7 @@ DGaussianSphere::DGaussianSphere()
 
 	nhPrivate.param("mode_depth_is_ignored", mode_depth_is_ignored, false);
 	nhPrivate.param("mode_floor_is_used", mode_floor_is_used, true);
-	nhPrivate.param("mode_pcl_viewer_on", mode_pcl_viewer_on, false);
+	nhPrivate.param("mode_pcl_viewer_on", mode_pcl_viewer_on, true);
 
 	if(!mode_pcl_viewer_on)	viewer.close();
 
