@@ -12,6 +12,7 @@
 #include <tf/transform_broadcaster.h>
 // #include <Eigen/Core>
 // #include <Eigen/LU>
+#include <std_msgs/Float64MultiArray.h>
 
 class WallEKFSLAM{
 	private:
@@ -26,10 +27,11 @@ class WallEKFSLAM{
 		/*publish*/
 		tf::TransformBroadcaster tf_broadcaster;
 		ros::Publisher pub_pose;
-		ros::Publisher pub_dgaussiansphere_est;
-		ros::Publisher pub_marker;
-		ros::Publisher pub_markerarray;
-		ros::Publisher pub_posearray;
+		ros::Publisher pub_dgaussiansphere_est;	////visualize
+		ros::Publisher pub_marker;		////visualize
+		ros::Publisher pub_markerarray;	//visualize
+		ros::Publisher pub_posearray;	//visualize
+		ros::Publisher pub_variance;	//visualize
 		/*const*/
 		const int size_robot_state = 6;	//X, Y, Z, R, P, Y (Global)
 		const int size_wall_state = 3;	//x, y, z (Local)
@@ -128,6 +130,7 @@ WallEKFSLAM::WallEKFSLAM()
 	pub_dgaussiansphere_est = nh.advertise<sensor_msgs::PointCloud2>("/d_gaussian_sphere_est", 1);
 	pub_marker = nh.advertise<visualization_msgs::Marker>("matching_lines", 1);
 	pub_markerarray = nh.advertise<visualization_msgs::MarkerArray>("planes", 1);
+	pub_variance = nh.advertise<std_msgs::Float64MultiArray>("variance", 1);
 	X = Eigen::VectorXd::Zero(size_robot_state);
 	P = Eigen::MatrixXd::Identity(size_robot_state, size_robot_state);
 	SetUpVisualizationMarkerLineList(matching_lines);
@@ -1014,6 +1017,11 @@ void WallEKFSLAM::Publication(void)
 	}
 	pub_posearray.publish(wall_origins);
 	pub_markerarray.publish(planes);
+
+	/*variance*/
+	std_msgs::Float64MultiArray variance_pub;
+	for(int i=0;i<P.cols();i++)	variance_pub.data.push_back(P(i, i));
+	pub_variance.publish(variance_pub);
 }
 
 geometry_msgs::PoseStamped WallEKFSLAM::StateVectorToPoseStamped(void)
