@@ -72,6 +72,7 @@ DGaussianSphere::DGaussianSphere()
 	viewer.addCoordinateSystem(0.8, "axis");
 	// viewer.setCameraPosition(0.0, 0.0, 50.0, 0.0, 0.0, 0.0);
 	viewer.setCameraPosition(-30.0, 0.0, 10.0, 0.0, 0.0, 1.0);
+	viewer.setFullScreen(true);
 
 	nhPrivate.param("mode_depth_is_ignored", mode_depth_is_ignored, false);
 	nhPrivate.param("mode_floor_is_used", mode_floor_is_used, true);
