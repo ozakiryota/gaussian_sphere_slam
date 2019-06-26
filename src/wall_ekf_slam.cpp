@@ -266,7 +266,7 @@ void WallEKFSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 	
 	/*Update*/
 	X = F;
-	// P = jF*P*jF.transpose() + Q;
+	P = jF*P*jF.transpose() + Q;
 
 	/* std::cout << "X =" << std::endl << X << std::endl; */
 	/* std::cout << "P =" << std::endl << P << std::endl; */
@@ -378,8 +378,6 @@ void WallEKFSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 	/*Q*/
 	const double sigma = 1.0e-4;
 	Eigen::MatrixXd Q = sigma*Eigen::MatrixXd::Identity(X.size(), X.size());
-	Q(1, 1) = 0.0;
-	Q(2, 2) = 0.0;
 	Q.block(3, 3, 3, 3) = Eigen::MatrixXd::Zero(3, 3);
 	Q.block(size_robot_state, size_robot_state, num_wall*size_wall_state, num_wall*size_wall_state) = Eigen::MatrixXd::Zero(num_wall*size_wall_state, num_wall*size_wall_state);
 	
