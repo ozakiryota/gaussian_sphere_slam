@@ -285,10 +285,6 @@ void WallEKFSLAM::ObservationIMU(sensor_msgs::Imu imu)
 		-imu.linear_acceleration.z
 	);
 
-	cos(RPY(1))*cos(RPY(2)),										cos(RPY(1))*sin(RPY(2)),										-sin(RPY(1)),
-	sin(RPY(0))*sin(RPY(1))*cos(RPY(2)) - cos(RPY(0))*sin(RPY(2)),	sin(RPY(0))*sin(RPY(1))*sin(RPY(2)) + cos(RPY(0))*cos(RPY(2)),	sin(RPY(0))*cos(RPY(1)),
-	cos(RPY(0))*sin(RPY(1))*cos(RPY(2)) + sin(RPY(0))*sin(RPY(2)),	cos(RPY(0))*sin(RPY(1))*sin(RPY(2)) - sin(RPY(0))*cos(RPY(2)),	cos(RPY(0))*cos(RPY(1));
-
 	/*H*/
 	Eigen::Vector3d G(0, 0, -9.80665);
 	Eigen::Vector3d H = GetRotationXYZMatrix(RPY, true)*G;
