@@ -69,11 +69,11 @@ class WallEKFSLAM{
 				std::vector<int> available_lm_indices;
 				std::vector<int> unavailable_lm_indices;
 			public:
-				RemoveUnavailableLM(const Eigen::VectorXd& X, const Eigen::VectorXd& P, int size_robot_state, int size_wall_state);
+				RemoveUnavailableLM(const Eigen::VectorXd& X, const Eigen::MatrixXd& P, int size_robot_state, int size_wall_state);
 				void InputAvailableLMIndex(int lm_index);
 				void InputUnavailableLMIndex(int lm_index);
-				void Remove(Eigen::VectorXd& X, Eigen::VectorXd& P);
-				void Recover(Eigen::VectorXd& X, Eigen::VectorXd& P);
+				void Remove(Eigen::VectorXd& X, Eigen::MatrixXd& P);
+				void Recover(Eigen::VectorXd& X, Eigen::MatrixXd& P);
 		};
 		/*objects*/
 		Eigen::VectorXd X;
@@ -769,6 +769,13 @@ void WallEKFSLAM::PushBackMarkerMatchingLines(const Eigen::Vector3d& P1, const E
 
 void WallEKFSLAM::ObservationUpdate(const Eigen::VectorXd& Z, const Eigen::VectorXd& H, const Eigen::MatrixXd& jH, const Eigen::VectorXd& Diag_sigma)
 {
+	RemoveUnavailableLM remover(X, P, size_robot_state, size_wall_state);
+	for(size_t i=0;i<list_lm_info.size();i++){
+		if(list_lm_info[i].available)	remover.InputAvailableLMIndex(i);
+		else	remover.InputUnavailableLMIndex(i);
+	}
+	remover.Remove(X, P);
+
 	Eigen::VectorXd Y = Z - H;
 	// const double sigma = 1.0e-1;
 	// const double sigma = 1.2e-1;	//using floor
@@ -781,6 +788,8 @@ void WallEKFSLAM::ObservationUpdate(const Eigen::VectorXd& Z, const Eigen::Vecto
 	for(int i=3;i<6;i++)	X(i) = PiToPi(X(i));
 	Eigen::MatrixXd I = Eigen::MatrixXd::Identity(X.size(), X.size());
 	P = (I - K*jH)*P;
+
+	remover.Recover(X, P);
 }
 
 Eigen::Vector3d WallEKFSLAM::PlaneGlobalToLocal(const Eigen::Vector3d& Ng)
@@ -1121,7 +1130,7 @@ double WallEKFSLAM::PiToPi(double angle)
 	return atan2(sin(angle), cos(angle)); 
 }
 
-WallEKFSLAM::RemoveUnavailableLM::RemoveUnavailableLM(const Eigen::VectorXd& X, const Eigen::VectorXd& P, int size_robot_state, int size_wall_state)
+WallEKFSLAM::RemoveUnavailableLM::RemoveUnavailableLM(const Eigen::VectorXd& X, const Eigen::MatrixXd& P, int size_robot_state, int size_wall_state)
 {
 	X_ = X;
 	P_ = P;
@@ -1136,7 +1145,7 @@ void WallEKFSLAM::RemoveUnavailableLM::InputUnavailableLMIndex(int lm_index)
 {
 	unavailable_lm_indices.push_back(lm_index);
 }
-void WallEKFSLAM::RemoveUnavailableLM::Remove(Eigen::VectorXd& X, Eigen::VectorXd& P)
+void WallEKFSLAM::RemoveUnavailableLM::Remove(Eigen::VectorXd& X, Eigen::MatrixXd& P)
 {
 	X = X_;
 	P = P_;
@@ -1159,7 +1168,7 @@ void WallEKFSLAM::RemoveUnavailableLM::Remove(Eigen::VectorXd& X, Eigen::VectorX
 		P.block(delimit_point, delimit_point, P.rows()-delimit_point, P.cols()-delimit_point) = tmp_P.block(delimit_point_, delimit_point_, P.rows()-delimit_point_, P.cols()-delimit_point_);
 	}
 }
-void WallEKFSLAM::RemoveUnavailableLM::Recover(Eigen::VectorXd& X, Eigen::VectorXd& P)
+void WallEKFSLAM::RemoveUnavailableLM::Recover(Eigen::VectorXd& X, Eigen::MatrixXd& P)
 {
 	Eigen::VectorXd tmp_X = X_;
 	Eigen::MatrixXd tmp_P = P_;
