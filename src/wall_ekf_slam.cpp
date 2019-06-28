@@ -769,13 +769,6 @@ void WallEKFSLAM::PushBackMarkerMatchingLines(const Eigen::Vector3d& P1, const E
 
 void WallEKFSLAM::ObservationUpdate(const Eigen::VectorXd& Z, const Eigen::VectorXd& H, const Eigen::MatrixXd& jH, const Eigen::VectorXd& Diag_sigma)
 {
-	RemoveUnavailableLM remover(X, P, size_robot_state, size_wall_state);
-	for(size_t i=0;i<list_lm_info.size();i++){
-		if(list_lm_info[i].available)	remover.InputAvailableLMIndex(i);
-		else	remover.InputUnavailableLMIndex(i);
-	}
-	remover.Remove(X, P);
-
 	Eigen::VectorXd Y = Z - H;
 	// const double sigma = 1.0e-1;
 	// const double sigma = 1.2e-1;	//using floor
@@ -788,8 +781,6 @@ void WallEKFSLAM::ObservationUpdate(const Eigen::VectorXd& Z, const Eigen::Vecto
 	for(int i=3;i<6;i++)	X(i) = PiToPi(X(i));
 	Eigen::MatrixXd I = Eigen::MatrixXd::Identity(X.size(), X.size());
 	P = (I - K*jH)*P;
-
-	remover.Recover(X, P);
 }
 
 Eigen::Vector3d WallEKFSLAM::PlaneGlobalToLocal(const Eigen::Vector3d& Ng)
