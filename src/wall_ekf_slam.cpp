@@ -59,6 +59,22 @@ class WallEKFSLAM{
 			Eigen::VectorXd Y;
 			Eigen::MatrixXd S;
 		};
+		/*class*/
+		class RemoveUnavailableLM{
+			private:
+				Eigen::VectorXd X_;
+				Eigen::MatrixXd P_;
+				int size_robot_state_;
+				int size_wall_state_;
+				std::vector<int> available_lm_indices;
+				std::vector<int> unavailable_lm_indices;
+			public:
+				RemoveUnavailableLM(const Eigen::VectorXd& X, const Eigen::VectorXd& P, int size_robot_state, int size_wall_state);
+				void InputAvailableLMIndex(int lm_index);
+				void InputUnavailableLMIndex(int lm_index);
+				void Remove(Eigen::VectorXd& X, Eigen::VectorXd& P);
+				void Recover(Eigen::VectorXd& X, Eigen::VectorXd& P);
+		};
 		/*objects*/
 		Eigen::VectorXd X;
 		Eigen::MatrixXd P;
@@ -1103,6 +1119,58 @@ double WallEKFSLAM::PiToPi(double angle)
 {
 	/* return fmod(angle + M_PI, 2*M_PI) - M_PI; */
 	return atan2(sin(angle), cos(angle)); 
+}
+
+WallEKFSLAM::RemoveUnavailableLM::RemoveUnavailableLM(const Eigen::VectorXd& X, const Eigen::VectorXd& P, int size_robot_state, int size_wall_state)
+{
+	X_ = X;
+	P_ = P;
+	size_robot_state_ = size_robot_state;
+	size_wall_state_ = size_wall_state;
+}
+void WallEKFSLAM::RemoveUnavailableLM::InputAvailableLMIndex(int lm_index)
+{
+	available_lm_indices.push_back(lm_index);
+}
+void WallEKFSLAM::RemoveUnavailableLM::InputUnavailableLMIndex(int lm_index)
+{
+	unavailable_lm_indices.push_back(lm_index);
+}
+void WallEKFSLAM::RemoveUnavailableLM::Remove(Eigen::VectorXd& X, Eigen::VectorXd& P)
+{
+	X = X_;
+	P = P_;
+	for(size_t i=0;i<unavailable_lm_indices.size();i++){
+		/*delmit point*/
+		int index = unavailable_lm_indices[i] - i;
+		int delimit_point = size_robot_state_ + index*size_wall_state_;
+		int delimit_point_ = size_robot_state_ + (index+1)*size_wall_state_;
+		/*X*/
+		Eigen::VectorXd tmp_X = X;
+		X.resize(X.size() - size_wall_state_);
+		X.segment(0, delimit_point) = tmp_X.segment(0, delimit_point);
+		X.segment(delimit_point, X.size() - delimit_point) = tmp_X.segment(delimit_point_, tmp_X.size() - delimit_point_);
+		/*P*/
+		Eigen::MatrixXd tmp_P = P;
+		P.resize(P.cols() - size_wall_state_, P.rows() - size_wall_state_);
+		P.block(0, 0, delimit_point, delimit_point) = tmp_P.block(0, 0, delimit_point, delimit_point);
+		P.block(0, delimit_point, delimit_point, P.cols()-delimit_point) = tmp_P.block(0, delimit_point_, delimit_point_, P.cols()-delimit_point_);
+		P.block(delimit_point, 0, P.rows()-delimit_point, delimit_point) = tmp_P.block(delimit_point_, 0, P.rows()-delimit_point_, delimit_point_);
+		P.block(delimit_point, delimit_point, P.rows()-delimit_point, P.cols()-delimit_point) = tmp_P.block(delimit_point_, delimit_point_, P.rows()-delimit_point_, P.cols()-delimit_point_);
+	}
+}
+void WallEKFSLAM::RemoveUnavailableLM::Recover(Eigen::VectorXd& X, Eigen::VectorXd& P)
+{
+	Eigen::VectorXd tmp_X = X_;
+	Eigen::MatrixXd tmp_P = P_;
+	for(size_t i=0;i<available_lm_indices.size();i++){
+		tmp_X(available_lm_indices[i]) = X(i);
+		for(size_t j=0;j<available_lm_indices.size();j++){
+			tmp_P(available_lm_indices[i], available_lm_indices[j]) = P(i, j);
+		}
+	}
+	X = tmp_X;
+	P = tmp_P;
 }
 
 int main(int argc, char** argv)
