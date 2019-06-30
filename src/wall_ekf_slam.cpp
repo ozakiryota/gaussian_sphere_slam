@@ -222,12 +222,12 @@ void WallEKFSLAM::CallbackIMU(const sensor_msgs::ImuConstPtr& msg)
 
 void WallEKFSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 {
-	RemoveUnavailableLM remover(X, P, size_robot_state, size_wall_state, list_lm_info);
-	for(size_t i=0;i<list_lm_info.size();i++){
-		if(list_lm_info[i].available)	remover.InputAvailableLMIndex(i);
-		else	remover.InputUnavailableLMIndex(i);
-	}
-	remover.Remove(X, P, list_lm_info);
+	// RemoveUnavailableLM remover(X, P, size_robot_state, size_wall_state, list_lm_info);
+	// for(size_t i=0;i<list_lm_info.size();i++){
+	// 	if(list_lm_info[i].available)	remover.InputAvailableLMIndex(i);
+	// 	else	remover.InputUnavailableLMIndex(i);
+	// }
+	// remover.Remove(X, P, list_lm_info);
 
 	/* std::cout << "PredictionIMU" << std::endl; */
 	double x = X(0);
@@ -292,7 +292,7 @@ void WallEKFSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 	X = F;
 	P = jF*P*jF.transpose() + Q;
 	
-	remover.Recover(X, P, list_lm_info);
+	// remover.Recover(X, P, list_lm_info);
 
 	/* std::cout << "X =" << std::endl << X << std::endl; */
 	/* std::cout << "P =" << std::endl << P << std::endl; */
@@ -363,12 +363,12 @@ void WallEKFSLAM::CallbackOdom(const nav_msgs::OdometryConstPtr& msg)
 void WallEKFSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 {
 	/* std::cout << "Prediction Odom" << std::endl; */
-	RemoveUnavailableLM remover(X, P, size_robot_state, size_wall_state, list_lm_info);
-	for(size_t i=0;i<list_lm_info.size();i++){
-		if(list_lm_info[i].available)	remover.InputAvailableLMIndex(i);
-		else	remover.InputUnavailableLMIndex(i);
-	}
-	remover.Remove(X, P, list_lm_info);
+	// RemoveUnavailableLM remover(X, P, size_robot_state, size_wall_state, list_lm_info);
+	// for(size_t i=0;i<list_lm_info.size();i++){
+	// 	if(list_lm_info[i].available)	remover.InputAvailableLMIndex(i);
+	// 	else	remover.InputUnavailableLMIndex(i);
+	// }
+	// remover.Remove(X, P, list_lm_info);
 
 	double x = X(0);
 	double y = X(1);
@@ -422,7 +422,7 @@ void WallEKFSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 	X = F;
 	P = jF*P*jF.transpose() + Q;
 
-	remover.Recover(X, P, list_lm_info);
+	// remover.Recover(X, P, list_lm_info);
 }
 
 void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr &msg)
@@ -440,12 +440,12 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 	planes.markers.clear();	//visualization
 
 	JudgeWallsCanBeObserbed();
-	RemoveUnavailableLM remover(X, P, size_robot_state, size_wall_state, list_lm_info);
-	for(size_t i=0;i<list_lm_info.size();i++){
-		if(list_lm_info[i].available)	remover.InputAvailableLMIndex(i);
-		else	remover.InputUnavailableLMIndex(i);
-	}
-	remover.Remove(X, P, list_lm_info);
+	// RemoveUnavailableLM remover(X, P, size_robot_state, size_wall_state, list_lm_info);
+	// for(size_t i=0;i<list_lm_info.size();i++){
+	// 	if(list_lm_info[i].available)	remover.InputAvailableLMIndex(i);
+	// 	else	remover.InputUnavailableLMIndex(i);
+	// }
+	// remover.Remove(X, P, list_lm_info);
 
 	int num_wall = (X.size() - size_robot_state)/size_wall_state;
 	/*matching*/
@@ -529,7 +529,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 	}
 	/*update*/
 	if(Zstacked.size()>0 && inipose_is_available)	ObservationUpdate(Zstacked, Hstacked, jHstacked, Diag_sigma);
-	remover.Recover(X, P, list_lm_info);
+	// remover.Recover(X, P, list_lm_info);
 	/*Registration of new walls*/
 	X.conservativeResize(X.size() + Xnew.size());
 	X.segment(X.size() - Xnew.size(), Xnew.size()) = Xnew;
