@@ -498,7 +498,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 		}
 	}
 	/*arrange LM info*/
-	const double tolerance = 5.0;
+	const double tolerance = 2.0;
 	for(int i=0;i<list_lm_info.size();i++){
 		list_lm_info[i].list_lm_observed_simul.resize(list_lm_info.size(), false);	//keeps valuses and inputs "false" into new memories
 		/*update unmached lm info*/
@@ -757,8 +757,8 @@ bool WallEKFSLAM::CheckNormalIsInward(const Eigen::Vector3d& Ng)
 
 void WallEKFSLAM::JudgeWallsCanBeObserbed(void)
 {
-	const double small_tolerance = 5.0;
-	const double large_tolerance = 10.0;
+	const double small_tolerance = 1.0;
+	const double large_tolerance = 5.0;
 	
 	for(size_t i=0;i<list_lm_info.size();i++){
 		Eigen::Vector3d Ng = X.segment(size_robot_state+i*size_wall_state, size_wall_state);
