@@ -152,11 +152,21 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: true
+        aft_mapped:
+          Value: true
+        camera:
+          Value: true
+        camera_init:
+          Value: true
         gyrodometry:
           Value: true
         initial_orientation:
           Value: true
+        laser_odom:
+          Value: true
         odom:
+          Value: true
+        odom/change_axis:
           Value: true
         velodyne:
           Value: true
@@ -170,6 +180,8 @@ Visualization Manager:
           gyrodometry:
             {}
           initial_orientation:
+            {}
+          odom/change_axis:
             {}
           velodyne:
             {}
@@ -233,7 +245,7 @@ Visualization Manager:
         Shaft Length: 1
         Shaft Radius: 0.0500000007
         Value: Arrow
-      Topic: /odom/from_posestamped
+      Topic: /wall_ekf_slam_odom
       Unreliable: false
       Value: true
     - Angle Tolerance: 0.100000001

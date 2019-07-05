@@ -37,6 +37,8 @@
 	<!-- for visualize trajectory -->
 	<node pkg="msg_conversion" type="posestamped_to_odometry" name="posestamped_to_odometry">
 		<remap from="/pose" to="/pose_wall_ekf_slam"/>
+		<remap from="/odom/from_posestamped" to="/wall_ekf_slam_odom"/>
+		<param name="child_frame_id" type="string" value="/wall_ekf_slam_odom"/>
 	</node>
 
 </launch>
