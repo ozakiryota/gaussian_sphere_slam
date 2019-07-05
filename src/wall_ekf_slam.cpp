@@ -534,7 +534,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 	X.conservativeResize(X.size() + Xnew.size());
 	X.segment(X.size() - Xnew.size(), Xnew.size()) = Xnew;
 	Eigen::MatrixXd Ptmp = P;
-	const double sigma = 0.8;
+	const double sigma = 0.25;
 	P = sigma*Eigen::MatrixXd::Identity(X.size(), X.size());
 	P.block(0, 0, Ptmp.rows(), Ptmp.cols()) = Ptmp;
 	/*delete marged LM*/
