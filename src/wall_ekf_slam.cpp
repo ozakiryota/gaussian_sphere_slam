@@ -613,7 +613,7 @@ void WallEKFSLAM::SearchCorrespondObsID(std::vector<ObsInfo>& list_obs_info, int
 			int id1 = list_obs_info[correspond_id].matched_lm_id;
 			int id2 = lm_id;
 			if(!list_lm_info[id1].list_lm_observed_simul[id2]){
-				std::cout << "merged!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
+				std::cout << "merged!" << std::endl;
 				list_lm_info[id2].was_merged = true;
 				/*convert observed range in id2-frame to id1-frame*/
 				double observed_range_of_id2_in_id1_frame[3][2] = {};
