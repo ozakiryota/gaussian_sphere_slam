@@ -512,8 +512,8 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 			Eigen::Vector3d Position_in_wall_frame = PointGlobalToWallFrame(X.segment(0, 3), list_lm_info[i].origin);
 			if(Position_in_wall_frame(0)<list_lm_info[i].observed_range[0][1]){
 				for(int j=1;j<3;j++){
-					if(Position_in_wall_frame(j) < list_lm_info[j].observed_range[j][0]-tolerance)	list_lm_info[i].reached_edge[j][0] = true;
-					if(Position_in_wall_frame(j) > list_lm_info[j].observed_range[j][1]+tolerance)	list_lm_info[i].reached_edge[j][1] = true;
+					if(Position_in_wall_frame(j) < list_lm_info[i].observed_range[j][0]-tolerance)	list_lm_info[i].reached_edge[j][0] = true;
+					if(Position_in_wall_frame(j) > list_lm_info[i].observed_range[j][1]+tolerance)	list_lm_info[i].reached_edge[j][1] = true;
 				}
 			}
 		}
