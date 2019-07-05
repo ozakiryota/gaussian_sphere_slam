@@ -764,7 +764,7 @@ void WallEKFSLAM::JudgeWallsCanBeObserbed(void)
 		Eigen::Vector3d Ng = X.segment(size_robot_state+i*size_wall_state, size_wall_state);
 		/*judge in direction of normal*/
 		if(list_lm_info[i].is_inward!=CheckNormalIsInward(Ng))	list_lm_info[i].available = false;
-		else if(list_lm_info[i].was_merged)	list_lm_info[i].available = false;	//test
+		else if(list_lm_info[i].was_merged || list_lm_info[i].was_erased)	list_lm_info[i].available = false;	//test
 		else{
 			/*set probable range*/
 			for(int j=1;j<3;j++){	//y,z
