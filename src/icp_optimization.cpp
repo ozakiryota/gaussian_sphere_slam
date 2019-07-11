@@ -1,13 +1,17 @@
 #include <ros/ros.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <geometry_msgs/PoseStamped.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
+#include <pcl/visualization/cloud_viewer.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <tf/tf.h>
 #include <pcl/common/transforms.h>
 #include <pcl/registration/icp.h>
+/* #include <eigen_conversions/eigen_msg.h> */
 #include <pcl/filters/passthrough.h>
-#include <tf/transform_broadcaster.h>
+/* #include <tf/transform_broadcaster.h> */
+/* #include <pcl_ros/transforms.h> */
 
 class ICP{
 	private:
@@ -15,24 +19,22 @@ class ICP{
 		ros::NodeHandle nhPrivate;
 		/*subscribe*/
 		ros::Subscriber sub_pc;
-		ros::Subscriber sub_odom;
+		ros::Subscriber sub_pose;
 		/*publish*/
-		ros::Publisher pub_odom;
-		tf::TransformBroadcaster tf_broadcaster;
+		ros::Publisher pub_pc;
+		// tf::TransformBroadcaster tf_broadcaster;
 		/*viewer*/
 		pcl::visualization::PCLVisualizer viewer{"icp"};
 		/*cloud*/
-		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_now {new pcl::PointCloud<pcl::PointXYZ>};
-		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_last {new pcl::PointCloud<pcl::PointXYZ>};
+		pcl::PointCloud<pcl::PointXYZ>::Ptr map {new pcl::PointCloud<pcl::PointXYZ>};
+		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud {new pcl::PointCloud<pcl::PointXYZ>};
 		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_transformed {new pcl::PointCloud<pcl::PointXYZ>};
-		/*odom*/
-		nav_msgs::Odometry odom_icp;
-		nav_msgs::Odometry odom_now;
-		nav_msgs::Odometry odom_last;
+		/*frame id*/
+		// std::string global_frame_id_name;
 		/*flags*/
-		bool first_callback_odom = true;
+		bool first_callback_pose = true;
 		/*time*/
-		ros::Time time_start;
+		// ros::Time time_start;
 		/*parameters*/
 		double pc_range;
 		double iterations;
@@ -40,29 +42,28 @@ class ICP{
 		double fit_epsilon;
 	public:
 		ICP();
-		void InitializeOdom(nav_msgs::Odometry& odom);
 		void CallbackPC(const sensor_msgs::PointCloud2ConstPtr& msg);
-		void CallbackOdom(const nav_msgs::OdometryConstPtr& msg);
+		void CallbackPose(const geometry_msgs::PoseStampedConstPtr& msg);
 		void Compute(void);
-		void Transformation(void);
-		Eigen::Quaternionf QuatMsgToEigen(geometry_msgs::Quaternion q_msg);
-		geometry_msgs::Quaternion QuatEigenToMsg(Eigen::Quaternionf q_eigen);
+		void Transformation(geometry_msgs::PoseStamped pose);
 		void Visualization(void);
 		void Publication(void);
+		Eigen::Quaternionf QuatMsgToEigen(geometry_msgs::Quaternion q_msg);
+		geometry_msgs::Quaternion QuatEigenToMsg(Eigen::Quaternionf q_eigen);
 };
 
 ICP::ICP()
 	:nhPrivate("~")
 {
 	sub_pc = nh.subscribe("/velodyne_points", 1, &ICP::CallbackPC, this);
-	sub_pose = nh.subscribe("/", 1, &ICP::CallbackOdom, this);
-	pub_odom = nh.advertise<nav_msgs::Odometry>("/icp_odometry", 1);
+	sub_pose = nh.subscribe("/wall_ekf_slam/pose", 1, &ICP::CallbackPose, this);
+	pub_pc = nh.advertise<sensor_msgs::PointCloud2>("/map", 1);
 	viewer.setBackgroundColor(1, 1, 1);
 	viewer.addCoordinateSystem(0.5, "axis");
 	viewer.setCameraPosition(0.0, 0.0, 80.0, 0.0, 0.0, 0.0);
-	InitializeOdom(odom_icp);
-	InitializeOdom(odom_now);
-	InitializeOdom(odom_last);
+
+	/* nhPrivate.param("global_frame_id", global_frame_id_name, std::string("/odom")); */
+	/* nhPrivate.param("local_frame_id", local_frame_id_name, std::string("/velodyne")); */
 
 	nhPrivate.param("pc_range", pc_range, {100.0});
 	nhPrivate.param("iterations", iterations, {100});
@@ -74,71 +75,57 @@ ICP::ICP()
 	std::cout << "fit_epsilon = " << fit_epsilon << std::endl;
 }
 
-void ICP::InitializeOdom(nav_msgs::Odometry& odom)
-{
-	odom.header.frame_id = "/odom";
-	odom.child_frame_id = "/icp_odometry";
-	odom.pose.pose.position.x = 0.0;
-	odom.pose.pose.position.y = 0.0;
-	odom.pose.pose.position.z = 0.0;
-	odom.pose.pose.orientation.x = 0.0;
-	odom.pose.pose.orientation.y = 0.0;
-	odom.pose.pose.orientation.z = 0.0;
-	odom.pose.pose.orientation.w = 1.0;
-}
-
 void ICP::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 {
 	std::cout << "CALLBACK PC" << std::endl;
 	
-	if(cloud_last->points.empty()){
-		pcl::fromROSMsg(*msg, *cloud_now);
-		*cloud_last = *cloud_now;
-	}
-	else{
-		*cloud_last = *cloud_now;
-		pcl::fromROSMsg(*msg, *cloud_now);
-	}
-	std::cout << "msg->header.stamp.toSec()-time_start.toSec() = " << msg->header.stamp.toSec()-time_start.toSec() << std::endl;
+	pcl::fromROSMsg(*msg, *cloud);
 
 	pcl::PassThrough<pcl::PointXYZ> pass;
-	pass.setInputCloud(cloud_now);
+	pass.setInputCloud(cloud);
 	pass.setFilterFieldName("x");
 	pass.setFilterLimits(-pc_range, pc_range);
-	pass.filter(*cloud_now);
-	pass.setInputCloud(cloud_now);
+	pass.filter(*cloud);
+	pass.setInputCloud(cloud);
 	pass.setFilterFieldName("y");
 	pass.setFilterLimits(-pc_range, pc_range);
-	pass.filter(*cloud_now);
+	pass.filter(*cloud);
 }
 
-void ICP::CallbackOdom(const nav_msgs::OdometryConstPtr& msg)
+void ICP::CallbackPose(const geometry_msgs::PoseStampedConstPtr& msg)
 {
-	std::cout << "CALLBACK ODOM" << std::endl;
+	std::cout << "CALLBACK POSE" << std::endl;
 
-	if(first_callback_odom){
-		odom_now = *msg;
-		odom_last = odom_now;
-		time_start = ros::Time::now();
+	if(first_callback_pose && map->points.empty()){
+		*map = *cloud;
 	}
 	else{
-		odom_last = odom_now;
-		odom_now = *msg;
+		// Transformation(*msg);
 	}
-	std::cout << "msg->header.stamp.toSec()-time_start.toSec() = " << msg->header.stamp.toSec()-time_start.toSec() << std::endl;
 
-	first_callback_odom = false;
-}
+	*map += *cloud_transformed;
+	// map->header = cloud->header;
+	map->header.stamp = cloud->header.stamp;
+	map->header.frame_id = msg->header.frame_id;
 
-void ICP::Compute(void)
-{
-	std::cout << "COMPUTE" << std::endl;
-	Transformation();
-	Visualization();
+	first_callback_pose = false;
+
 	Publication();
+	Visualization();
+
+	std::cout << "cloud->points.size() = " << cloud->points.size() << std::endl;
+	std::cout << "map->points.size() = " << map->points.size() << std::endl;
 }
 
-void ICP::Transformation(void)
+/* void ICP::Compute(void) */
+/* { */
+/* 	std::cout << "COMPUTE" << std::endl; */
+/* 	Transformation(); */
+/* 	Visualization(); */
+/* 	Publication(); */
+/* } */
+
+void ICP::Transformation(geometry_msgs::PoseStamped pose)
 {
 	/*set parameters*/
 	pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
@@ -146,56 +133,36 @@ void ICP::Transformation(void)
 	// icp.setMaximumIterations(iterations);
 	// icp.setTransformationEpsilon(trans_epsilon);
 	// icp.setEuclideanFitnessEpsilon(fit_epsilon);
-	icp.setInputSource(cloud_now);
-	icp.setInputTarget(cloud_last);
+	icp.setInputSource(cloud);
+	icp.setInputTarget(map);
 
 	/*initial guess*/
-	Eigen::Quaternionf q_pose_now = QuatMsgToEigen(odom_now.pose.pose.orientation);
-	Eigen::Quaternionf q_pose_last = QuatMsgToEigen(odom_last.pose.pose.orientation);
-	Eigen::Quaternionf q_relative_rotation = q_pose_last.inverse()*q_pose_now;
-	q_relative_rotation.normalize();
-	Eigen::Quaternionf q_global_move(
-		0.0,
-		odom_now.pose.pose.position.x - odom_last.pose.pose.position.x,
-		odom_now.pose.pose.position.y - odom_last.pose.pose.position.y,
-		odom_now.pose.pose.position.z - odom_last.pose.pose.position.z);
-	Eigen::Quaternionf q_local_move = q_pose_last.inverse()*q_global_move*q_pose_last;
-	Eigen::Translation3f init_translation(q_local_move.x(), q_local_move.y(), q_local_move.z());
-	Eigen::AngleAxisf init_rotation(q_relative_rotation);
+	Eigen::Translation3f init_translation(
+		pose.pose.position.x,
+		pose.pose.position.y,
+		pose.pose.position.z
+	);
+	Eigen::AngleAxisf init_rotation(
+		QuatMsgToEigen(pose.pose.orientation)
+	);
 	Eigen::Matrix4f init_guess = (init_translation*init_rotation).matrix();
 
 	/*align*/
 	icp.align(*cloud_transformed, init_guess);
+	// icp.computeTransformation(*cloud, init_guess);
 	// icp.align(*cloud_transformed);
 
 	/*print*/
-	std::cout << "Iterative Closest Point has converged:" << (bool)icp.hasConverged() 
-		<< std::endl << " score: " << icp.getFitnessScore () << std::endl;
+	std::cout << "Iterative Closest Point has converged:" << (bool)icp.hasConverged() << std::endl;
+	std::cout << " score: " << icp.getFitnessScore () << std::endl;
 	std::cout << "icp.getFinalTransformation()" << std::endl << icp.getFinalTransformation() << std::endl;
 	std::cout << "init_guess" << std::endl << init_guess << std::endl;
 
-	/*convert to /odom*/
+	/*input*/
 	Eigen::Matrix4f m_transformation = icp.getFinalTransformation();
 	Eigen::Matrix3f m_rot = m_transformation.block(0, 0, 3, 3);
 	Eigen::Quaternionf q_rot(m_rot);
 	q_rot.normalize();
-	Eigen::Quaternionf q_pose = QuatMsgToEigen(odom_icp.pose.pose.orientation);
-	odom_icp.pose.pose.orientation = QuatEigenToMsg((q_pose*q_rot).normalized());
-
-	Eigen::Quaternionf q_trans(
-		0.0,
-		m_transformation(0, 3),
-		m_transformation(1, 3),
-		m_transformation(2, 3)
-	);
-	q_trans = q_pose*q_trans*q_pose.inverse();
-	std::cout << q_trans.x() << std::endl;
-	std::cout << q_trans.y() << std::endl;
-	std::cout << q_trans.z() << std::endl;
-	std::cout << q_trans.w() << std::endl;
-	odom_icp.pose.pose.position.x += q_trans.x();
-	odom_icp.pose.pose.position.y += q_trans.y();
-	odom_icp.pose.pose.position.z += q_trans.z();
 }
 
 Eigen::Quaternionf ICP::QuatMsgToEigen(geometry_msgs::Quaternion q_msg)
@@ -224,13 +191,13 @@ void ICP::Visualization(void)
 {
 	viewer.removeAllPointClouds();
 
-	viewer.addPointCloud<pcl::PointXYZ>(cloud_now, "cloud_now");
-	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 1.0, 0.0, 0.0, "cloud_now");
-	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, "cloud_now");
+	viewer.addPointCloud<pcl::PointXYZ>(cloud, "cloud");
+	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 1.0, 0.0, 0.0, "cloud");
+	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, "cloud");
 
-	viewer.addPointCloud<pcl::PointXYZ>(cloud_last, "cloud_last");
-	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 1.0, 0.0, "cloud_last");
-	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, "cloud_last");
+	viewer.addPointCloud<pcl::PointXYZ>(map, "map");
+	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 1.0, 0.0, "map");
+	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, "map");
 
 	viewer.addPointCloud<pcl::PointXYZ>(cloud_transformed, "cloud_transformed");
 	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 0.0, 1.0, "cloud_transformed");
@@ -242,19 +209,20 @@ void ICP::Visualization(void)
 void ICP::Publication(void)
 {
 	/*publish*/
-	// odom_icp.header.stamp = ros::Time::now();
-	odom_icp.header.stamp = odom_now.header.stamp;
-	pub_odom.publish(odom_icp);
+	sensor_msgs::PointCloud2 pc_pub;
+	pcl::toROSMsg(*map, pc_pub);
+	pub_pc.publish(pc_pub);
+		
 	/*tf broadcast*/
-    geometry_msgs::TransformStamped transform;
-	transform.header.stamp = ros::Time::now();
-	transform.header.frame_id = "/odom";
-	transform.child_frame_id = "/icp_odometry";
-	transform.transform.translation.x = odom_icp.pose.pose.position.x;
-	transform.transform.translation.y = odom_icp.pose.pose.position.y;
-	transform.transform.translation.z = odom_icp.pose.pose.position.z;
-	transform.transform.rotation = odom_icp.pose.pose.orientation;
-	tf_broadcaster.sendTransform(transform);
+    /* geometry_msgs::TransformStamped transform; */
+	/* transform.header.stamp = ros::Time::now(); */
+	/* transform.header.frame_id = "/odom"; */
+	/* transform.child_frame_id = "/icp_odometry"; */
+	/* transform.transform.translation.x = odom_icp.pose.pose.position.x; */
+	/* transform.transform.translation.y = odom_icp.pose.pose.position.y; */
+	/* transform.transform.translation.z = odom_icp.pose.pose.position.z; */
+	/* transform.transform.rotation = odom_icp.pose.pose.orientation; */
+	/* tf_broadcaster.sendTransform(transform); */
 }
 
 int main(int argc, char** argv)
@@ -265,13 +233,14 @@ int main(int argc, char** argv)
 
 	// ros::spin();
 
-	ros::Rate loop_rate(20);
-	while(ros::ok()){
-		std::cout << "----------" << std::endl;
-		ros::spinOnce();
-		double time_start = ros::Time::now().toSec();
-		icp.Compute();
-		std::cout << "computation time: " << ros::Time::now().toSec() - time_start  << "[s]" << std::endl;
-		loop_rate.sleep();
-	}
+	ros::spin();
+	/* ros::Rate loop_rate(20); */
+	/* while(ros::ok()){ */
+	/* 	std::cout << "----------" << std::endl; */
+	/* 	ros::spinOnce(); */
+	/* 	double time_start = ros::Time::now().toSec(); */
+	/* 	icp.Compute(); */
+	/* 	std::cout << "computation time: " << ros::Time::now().toSec() - time_start  << "[s]" << std::endl; */
+	/* 	loop_rate.sleep(); */
+	/* } */
 }

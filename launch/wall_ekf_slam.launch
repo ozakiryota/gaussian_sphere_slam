@@ -23,6 +23,7 @@
 		<param name="mode_pcl_viewer_on" type="bool" value="false"/>
 	</node>
 	<node pkg="gaussian_sphere_slam" name="wall_ekf_slam" type="wall_ekf_slam" output="screen"/>
+	<!-- <node pkg="gaussian_sphere_slam" name="icp_optimization" type="icp_optimization" output="screen"/> -->
 
 	<!-- comparisons -->
 	<node pkg="gyrodometry" name="gyrodometry3d" type="gyrodometry3d" output="screen">
