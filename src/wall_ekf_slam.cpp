@@ -142,7 +142,7 @@ WallEKFSLAM::WallEKFSLAM()
 	sub_imu = nh.subscribe("/imu/data", 1, &WallEKFSLAM::CallbackIMU, this);
 	sub_odom = nh.subscribe("/tinypower/odom", 1, &WallEKFSLAM::CallbackOdom, this);
 	sub_dgaussiansphere_obs = nh.subscribe("/d_gaussian_sphere_obs", 1, &WallEKFSLAM::CallbackDGaussianSphere, this);
-	pub_pose = nh.advertise<geometry_msgs::PoseStamped>("/pose_wall_ekf_slam", 1);
+	pub_pose = nh.advertise<geometry_msgs::PoseStamped>("/wall_ekf_slam/pose", 1);
 	pub_posearray = nh.advertise<geometry_msgs::PoseArray>("/wall_origins", 1);
 	pub_dgaussiansphere_est = nh.advertise<sensor_msgs::PointCloud2>("/d_gaussian_sphere_est", 1);
 	pub_marker = nh.advertise<visualization_msgs::Marker>("matching_lines", 1);

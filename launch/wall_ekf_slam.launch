@@ -8,7 +8,7 @@
 	<node pkg="rosbag" type="play" name="player" args="--clock /home/amsl/ozaki/bagfiles/infant/indoor_dkan/2019-07-04-20-05-36.bag"/>
 
 	<!-- rviz -->
-	<!-- <node pkg="rviz" type="rviz" name="rviz_perspective" args="&#45;d $(find gaussian_sphere_slam)rviz_config/wall_ekf_slam.rviz"/> -->
+	<!-- <node pkg="rviz" type="rviz" name="rviz" args="&#45;d $(find gaussian_sphere_slam)rviz_config/wall_ekf_slam.rviz"/> -->
 
 	<!-- sensor driver -->
 	<include file="$(find velodyne_pointcloud)/launch/32e_points.launch"/>
@@ -36,9 +36,9 @@
 
 	<!-- for visualize trajectory -->
 	<node pkg="msg_conversion" type="posestamped_to_odometry" name="posestamped_to_odometry">
-		<remap from="/pose" to="/pose_wall_ekf_slam"/>
-		<remap from="/odom/from_posestamped" to="/wall_ekf_slam_odom"/>
-		<param name="child_frame_id" type="string" value="/wall_ekf_slam_odom"/>
+		<remap from="/pose" to="/wall_ekf_slam/pose"/>
+		<remap from="/odom/from_posestamped" to="/wall_ekf_slam/odom"/>
+		<param name="child_frame_id" type="string" value="/wall_ekf_slam/odom"/>
 	</node>
 
 </launch>

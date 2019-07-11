@@ -211,7 +211,7 @@ Visualization Manager:
       Shaft Length: 1
       Shaft Radius: 0.100000001
       Shape: Arrow
-      Topic: /pose_wall_ekf_slam
+      Topic: /wall_ekf_slam/pose
       Unreliable: false
       Value: true
     - Angle Tolerance: 0.100000001
@@ -245,7 +245,7 @@ Visualization Manager:
         Shaft Length: 1
         Shaft Radius: 0.0500000007
         Value: Arrow
-      Topic: /wall_ekf_slam_odom
+      Topic: /wall_ekf_slam/odom
       Unreliable: false
       Value: true
     - Angle Tolerance: 0.100000001
