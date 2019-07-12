@@ -27,7 +27,7 @@
 		<param name="pc_range" type="double" value="10"/>
 		<param name="iterations" type="int" value="200"/>
 		<param name="correspond_dist" type="double" value="0.1"/>
-		<param name="trans_epsilon" type="double" value="1.0"/>
+		<param name="trans_epsilon" type="double" value="1e-8"/>
 		<param name="fit_epsilon" type="double" value="1.0e-4"/>
 	</node>
 

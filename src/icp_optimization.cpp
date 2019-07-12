@@ -69,7 +69,7 @@ ICP::ICP()
 	nhPrivate.param("pc_range", pc_range, {100.0});
 	nhPrivate.param("iterations", iterations, 100);
 	nhPrivate.param("correspond_dist", correspond_dist, {0.1});
-	nhPrivate.param("trans_epsilon", trans_epsilon, {0.5});
+	nhPrivate.param("trans_epsilon", trans_epsilon, {1e-8});
 	nhPrivate.param("fit_epsilon", fit_epsilon, {1.0e-8});
 	std::cout << "pc_range = " << pc_range << std::endl;
 	std::cout << "iterations = " << iterations << std::endl;
