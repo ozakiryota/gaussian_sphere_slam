@@ -89,7 +89,7 @@ void GICPOptimization::CallbackPose(const geometry_msgs::PoseStampedConstPtr& ms
 	}
 	else{
 		has_converged = Transformation(*msg);
-		*map += *cloud_filtered;
+		*map += *cloud;
 	}
 
 	// map->header = cloud->header;
