@@ -27,6 +27,7 @@ class GICPOptimization{
 		pcl::PointCloud<pcl::PointNormal>::Ptr map {new pcl::PointCloud<pcl::PointNormal>};
 		pcl::PointCloud<pcl::PointNormal>::Ptr cloud {new pcl::PointCloud<pcl::PointNormal>};
 		pcl::PointCloud<pcl::PointNormal>::Ptr cloud_transformed {new pcl::PointCloud<pcl::PointNormal>};
+		pcl::PointCloud<pcl::PointNormal>::Ptr map_filtered (new pcl::PointCloud<pcl::PointNormal>);
 		/*flags*/
 		bool first_callback_pose = true;
 		/*time*/
@@ -120,7 +121,6 @@ void GICPOptimization::PCFilter(pcl::PointCloud<pcl::PointNormal>::Ptr pc_in, pc
 
 bool GICPOptimization::Transformation(geometry_msgs::PoseStamped pose)
 {
-	pcl::PointCloud<pcl::PointNormal>::Ptr map_filtered (new pcl::PointCloud<pcl::PointNormal>);
 	
 	/*filter pc*/
 	std::vector<double> range_map{
@@ -203,8 +203,12 @@ void GICPOptimization::Visualization(void)
 	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, "cloud");
 
 	viewer.addPointCloud<pcl::PointNormal>(map, "map");
-	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 1.0, 0.0, "map");
-	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, "map");
+	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 0.0, 0.0, "map");
+	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 0.5, "map");
+
+	viewer.addPointCloud<pcl::PointNormal>(map_filtered, "map_filtered");
+	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 1.0, 0.0, "map_filtered");
+	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, "map_filtered");
 
 	viewer.addPointCloud<pcl::PointNormal>(cloud_transformed, "cloud_transformed");
 	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 0.0, 1.0, "cloud_transformed");
