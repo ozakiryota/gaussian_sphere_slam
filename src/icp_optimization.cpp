@@ -134,8 +134,7 @@ bool ICPOptimization::Transformation(geometry_msgs::PoseStamped pose)
 	PCFilter(map, map_filtered, range_map);
 
 	/*set parameters*/
-	pcl::GeneralizedIterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
-	// pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
+	pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
 	icp.setMaximumIterations(iterations);
 	icp.setMaxCorrespondenceDistance(correspond_dist);
 	icp.setTransformationEpsilon(trans_epsilon);
