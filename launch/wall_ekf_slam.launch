@@ -24,7 +24,8 @@
 	</node>
 	<node pkg="gaussian_sphere_slam" name="wall_ekf_slam" type="wall_ekf_slam" output="screen"/>
 	<node pkg="gaussian_sphere_slam" name="icp_optimization" type="icp_optimization" output="screen">
-		<param name="pc_range" type="double" value="200"/>
+		<param name="pc_range" type="double" value="10"/>
+		<param name="iterations" type="int" value="200"/>
 	</node>
 
 	<!-- comparisons -->

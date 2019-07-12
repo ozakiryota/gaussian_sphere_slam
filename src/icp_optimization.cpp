@@ -37,7 +37,7 @@ class ICP{
 		// ros::Time time_start;
 		/*parameters*/
 		double pc_range;
-		double iterations;
+		int iterations;
 		double trans_epsilon;
 		double fit_epsilon;
 	public:
@@ -45,7 +45,7 @@ class ICP{
 		void CallbackPC(const sensor_msgs::PointCloud2ConstPtr& msg);
 		void CallbackPose(const geometry_msgs::PoseStampedConstPtr& msg);
 		void Compute(void);
-		void Transformation(geometry_msgs::PoseStamped pose);
+		bool Transformation(geometry_msgs::PoseStamped pose);
 		void Visualization(void);
 		void Publication(void);
 		Eigen::Quaternionf QuatMsgToEigen(geometry_msgs::Quaternion q_msg);
@@ -66,7 +66,7 @@ ICP::ICP()
 	/* nhPrivate.param("local_frame_id", local_frame_id_name, std::string("/velodyne")); */
 
 	nhPrivate.param("pc_range", pc_range, {100.0});
-	nhPrivate.param("iterations", iterations, {100});
+	nhPrivate.param("iterations", iterations, 100);
 	nhPrivate.param("trans_epsilon", trans_epsilon, {1.0e-8});
 	nhPrivate.param("fit_epsilon", fit_epsilon, {1.0e-8});
 	std::cout << "pc_range = " << pc_range << std::endl;
@@ -96,11 +96,12 @@ void ICP::CallbackPose(const geometry_msgs::PoseStampedConstPtr& msg)
 {
 	std::cout << "CALLBACK POSE" << std::endl;
 
+	bool has_converged;
 	if(first_callback_pose || map->points.empty()){
 		*map = *cloud;
 	}
 	else{
-		Transformation(*msg);
+		has_converged = Transformation(*msg);
 	}
 
 	*map += *cloud_transformed;
@@ -115,6 +116,7 @@ void ICP::CallbackPose(const geometry_msgs::PoseStampedConstPtr& msg)
 
 	std::cout << "cloud->points.size() = " << cloud->points.size() << std::endl;
 	std::cout << "map->points.size() = " << map->points.size() << std::endl;
+	if(!has_converged)	exit(1);
 }
 
 /* void ICP::Compute(void) */
@@ -125,7 +127,7 @@ void ICP::CallbackPose(const geometry_msgs::PoseStampedConstPtr& msg)
 /* 	Publication(); */
 /* } */
 
-void ICP::Transformation(geometry_msgs::PoseStamped pose)
+bool ICP::Transformation(geometry_msgs::PoseStamped pose)
 {
 	/*set parameters*/
 	pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
@@ -163,6 +165,8 @@ void ICP::Transformation(geometry_msgs::PoseStamped pose)
 	Eigen::Matrix3f m_rot = m_transformation.block(0, 0, 3, 3);
 	Eigen::Quaternionf q_rot(m_rot);
 	q_rot.normalize();
+
+	return icp.hasConverged();
 }
 
 Eigen::Quaternionf ICP::QuatMsgToEigen(geometry_msgs::Quaternion q_msg)
