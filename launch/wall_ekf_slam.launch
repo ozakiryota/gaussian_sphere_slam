@@ -26,6 +26,9 @@
 	<node pkg="gaussian_sphere_slam" name="icp_optimization" type="icp_optimization" output="screen">
 		<param name="pc_range" type="double" value="10"/>
 		<param name="iterations" type="int" value="200"/>
+		<param name="correspond_dist" type="double" value="0.1"/>
+		<param name="trans_epsilon" type="trans_epsilon" value="1.0"/>
+		<param name="fit_epsilon" type="fit_epsilon" value="1.0e-4"/>
 	</node>
 
 	<!-- comparisons -->

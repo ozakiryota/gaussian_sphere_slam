@@ -38,6 +38,7 @@ class ICP{
 		/*parameters*/
 		double pc_range;
 		int iterations;
+		double correspond_dist;
 		double trans_epsilon;
 		double fit_epsilon;
 	public:
@@ -67,10 +68,12 @@ ICP::ICP()
 
 	nhPrivate.param("pc_range", pc_range, {100.0});
 	nhPrivate.param("iterations", iterations, 100);
-	nhPrivate.param("trans_epsilon", trans_epsilon, {1.0e-8});
+	nhPrivate.param("correspond_dist", correspond_dist, {0.1});
+	nhPrivate.param("trans_epsilon", trans_epsilon, {0.5});
 	nhPrivate.param("fit_epsilon", fit_epsilon, {1.0e-8});
 	std::cout << "pc_range = " << pc_range << std::endl;
 	std::cout << "iterations = " << iterations << std::endl;
+	std::cout << "correspond_dist = " << correspond_dist << std::endl;
 	std::cout << "trans_epsilon = " << trans_epsilon << std::endl;
 	std::cout << "fit_epsilon = " << fit_epsilon << std::endl;
 }
@@ -131,10 +134,10 @@ bool ICP::Transformation(geometry_msgs::PoseStamped pose)
 {
 	/*set parameters*/
 	pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
-	// icp.setMaxCorrespondenceDistance(0.5);
-	// icp.setMaximumIterations(iterations);
-	// icp.setTransformationEpsilon(trans_epsilon);
-	// icp.setEuclideanFitnessEpsilon(fit_epsilon);
+	icp.setMaximumIterations(iterations);
+	icp.setMaxCorrespondenceDistance(correspond_dist);
+	icp.setTransformationEpsilon(trans_epsilon);
+	icp.setEuclideanFitnessEpsilon(fit_epsilon);
 	icp.setInputSource(cloud);
 	icp.setInputTarget(map);
 
