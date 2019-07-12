@@ -30,6 +30,7 @@ class GICPOptimization{
 		pcl::PointCloud<pcl::PointNormal>::Ptr map_filtered {new pcl::PointCloud<pcl::PointNormal>};
 		/*flags*/
 		bool first_callback_pose = true;
+		bool pc_was_transformed = true;
 		/*time*/
 		// ros::Time time_start;
 		/*parameters*/
@@ -77,6 +78,7 @@ void GICPOptimization::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 	std::cout << "CALLBACK PC" << std::endl;
 	
 	pcl::fromROSMsg(*msg, *cloud);
+	pc_was_transformed = false;
 }
 
 void GICPOptimization::CallbackPose(const geometry_msgs::PoseStampedConstPtr& msg)
@@ -87,9 +89,10 @@ void GICPOptimization::CallbackPose(const geometry_msgs::PoseStampedConstPtr& ms
 	if(first_callback_pose || map->points.empty()){
 		*map = *cloud;
 	}
-	else{
+	else if(!pc_was_transformed){
 		has_converged = Transformation(*msg);
 		*map += *cloud;
+		pc_was_transformed = true;
 	}
 
 	// map->header = cloud->header;
