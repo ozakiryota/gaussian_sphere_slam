@@ -41,7 +41,7 @@ class ICP{
 		ICP();
 		void CallbackPC(const sensor_msgs::PointCloud2ConstPtr& msg);
 		void CallbackPose(const geometry_msgs::PoseStampedConstPtr& msg);
-		void PCFilter(pcl::PointCloud<pcl::PointXYZ>::Ptr pc, pcl::PointCloud<pcl::PointXYZ>::Ptr pc_out);
+		void PCFilter(pcl::PointCloud<pcl::PointXYZ>::Ptr pc, pcl::PointCloud<pcl::PointXYZ>::Ptr pc_out, double min, double max);
 		bool Transformation(geometry_msgs::PoseStamped pose);
 		void Visualization(void);
 		void Publication(void);
@@ -105,16 +105,16 @@ void ICP::CallbackPose(const geometry_msgs::PoseStampedConstPtr& msg)
 	if(!has_converged)	exit(1);
 }
 
-void ICP::PCFilter(pcl::PointCloud<pcl::PointXYZ>::Ptr pc_in, pcl::PointCloud<pcl::PointXYZ>::Ptr pc_out)
+void ICP::PCFilter(pcl::PointCloud<pcl::PointXYZ>::Ptr pc_in, pcl::PointCloud<pcl::PointXYZ>::Ptr pc_out, double min, double max)
 {
 	pcl::PassThrough<pcl::PointXYZ> pass;
 	pass.setInputCloud(pc_in);
 	pass.setFilterFieldName("x");
-	pass.setFilterLimits(-pc_range, pc_range);
+	pass.setFilterLimits(min, max);
 	pass.filter(*pc_out);
 	pass.setInputCloud(pc_out);
 	pass.setFilterFieldName("y");
-	pass.setFilterLimits(-pc_range, pc_range);
+	pass.setFilterLimits(min, max);
 	pass.filter(*pc_out);
 }
 
@@ -123,7 +123,7 @@ bool ICP::Transformation(geometry_msgs::PoseStamped pose)
 	pcl::PointCloud<pcl::PointXYZ>::Ptr map_filtered {new pcl::PointCloud<pcl::PointXYZ>};
 	
 	/*filter pc*/
-	PCFilter(cloud, cloud);
+	PCFilter(cloud, cloud, -pc_range, pc_range);
 	PCFilter(map, map_filtered);
 
 	/*set parameters*/
