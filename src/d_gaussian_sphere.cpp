@@ -22,6 +22,7 @@ class DGaussianSphere{
 		ros::Subscriber sub_pc;
 		/*publish*/
 		ros::Publisher pub_pc;
+		ros::Publisher pub_nc;
 		/*pcl*/
 		pcl::visualization::PCLVisualizer viewer{"D-Gaussian Spheres"};
 		pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
@@ -68,6 +69,7 @@ DGaussianSphere::DGaussianSphere()
 {
 	sub_pc = nh.subscribe("/velodyne_points", 1, &DGaussianSphere::CallbackPC, this);
 	pub_pc = nh.advertise<sensor_msgs::PointCloud2>("/d_gaussian_sphere_obs", 1);
+	pub_nc = nh.advertise<sensor_msgs::PointCloud2>("/normals", 1);
 	viewer.setBackgroundColor(1, 1, 1);
 	viewer.addCoordinateSystem(0.8, "axis");
 	// viewer.setCameraPosition(0.0, 0.0, 50.0, 0.0, 0.0, 0.0);
@@ -362,11 +364,18 @@ void DGaussianSphere::Visualization(void)
 
 void DGaussianSphere::Publication(void)
 {
+	/*pc*/
 	sensor_msgs::PointCloud2 pc_pub;
 	pcl::toROSMsg(*d_gaussian_sphere_clustered, pc_pub);
 	pc_pub.header.frame_id = cloud->header.frame_id;
 	pc_pub.header.stamp = time_pub;
-	pub_pc.publish(pc_pub);	
+	pub_pc.publish(pc_pub);
+	/*nc*/
+	sensor_msgs::PointCloud2 nc_pub;
+	pcl::toROSMsg(*normals, nc_pub);
+	nc_pub.header.frame_id = cloud->header.frame_id;
+	nc_pub.header.stamp = time_pub;
+	pub_nc.publish(nc_pub);	
 }
 
 int main(int argc, char** argv)
