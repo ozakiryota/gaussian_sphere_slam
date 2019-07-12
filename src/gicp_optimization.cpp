@@ -214,10 +214,10 @@ void GICPOptimization::Visualization(void)
 
 	viewer.addPointCloud<pcl::PointNormal>(map_filtered, "map_filtered");
 	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 1.0, 0.0, "map_filtered");
-	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, "map_filtered");
+	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 0.75, "map_filtered");
 
 	viewer.addPointCloud<pcl::PointNormal>(cloud_filtered, "cloud_filtered");
-	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 0.0, 1.0, "cloud_filtered");
+	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 1.0, 0.0, 0.0, "cloud_filtered");
 	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, "cloud_filtered");
 
 	viewer.spinOnce();
