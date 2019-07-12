@@ -26,7 +26,7 @@ class GICPOptimization{
 		/*cloud*/
 		pcl::PointCloud<pcl::PointNormal>::Ptr map {new pcl::PointCloud<pcl::PointNormal>};
 		pcl::PointCloud<pcl::PointNormal>::Ptr cloud {new pcl::PointCloud<pcl::PointNormal>};
-		pcl::PointCloud<pcl::PointNormal>::Ptr cloud_transformed {new pcl::PointCloud<pcl::PointNormal>};
+		pcl::PointCloud<pcl::PointNormal>::Ptr cloud_filtered {new pcl::PointCloud<pcl::PointNormal>};
 		pcl::PointCloud<pcl::PointNormal>::Ptr map_filtered {new pcl::PointCloud<pcl::PointNormal>};
 		/*flags*/
 		bool first_callback_pose = true;
@@ -89,9 +89,9 @@ void GICPOptimization::CallbackPose(const geometry_msgs::PoseStampedConstPtr& ms
 	}
 	else{
 		has_converged = Transformation(*msg);
+		*map += *cloud_filtered;
 	}
 
-	*map += *cloud_transformed;
 	// map->header = cloud->header;
 	map->header.stamp = cloud->header.stamp;
 	map->header.frame_id = msg->header.frame_id;
@@ -129,7 +129,7 @@ bool GICPOptimization::Transformation(geometry_msgs::PoseStamped pose)
 		pose.pose.position.y - pc_range, 
 		pose.pose.position.y + pc_range
 	};
-	PCFilter(cloud, cloud, std::vector<double> {-pc_range, pc_range, -pc_range, pc_range});
+	PCFilter(cloud, cloud_filtered, std::vector<double> {-pc_range, pc_range, -pc_range, pc_range});
 	PCFilter(map, map_filtered, range_map);
 
 	/*set parameters*/
@@ -138,7 +138,7 @@ bool GICPOptimization::Transformation(geometry_msgs::PoseStamped pose)
 	// gicp.setMaxCorrespondenceDistance(correspond_dist);
 	gicp.setTransformationEpsilon(trans_epsilon);
 	gicp.setEuclideanFitnessEpsilon(fit_epsilon);
-	gicp.setInputSource(cloud);
+	gicp.setInputSource(cloud_filtered);
 	gicp.setInputTarget(map_filtered);
 
 	/*initial guess*/
@@ -153,9 +153,9 @@ bool GICPOptimization::Transformation(geometry_msgs::PoseStamped pose)
 	Eigen::Matrix4f init_guess = (init_translation*init_rotation).matrix();
 
 	/*align*/
-	gicp.align(*cloud_transformed, init_guess);
+	gicp.align(*cloud_filtered, init_guess);
 	// gicp.computeTransformation(*cloud, init_guess);
-	// gicp.align(*cloud_transformed);
+	// gicp.align(*cloud_filtered);
 
 	/*print*/
 	std::cout << "Iterative Closest Point has converged:" << (bool)gicp.hasConverged() << std::endl;
@@ -168,6 +168,9 @@ bool GICPOptimization::Transformation(geometry_msgs::PoseStamped pose)
 	Eigen::Matrix3f m_rot = m_transformation.block(0, 0, 3, 3);
 	Eigen::Quaternionf q_rot(m_rot);
 	q_rot.normalize();
+
+	/*rotation*/
+	pcl::transformPointCloud(*cloud, *cloud, gicp.getFinalTransformation());
 
 	return gicp.hasConverged();
 }
@@ -198,9 +201,9 @@ void GICPOptimization::Visualization(void)
 {
 	viewer.removeAllPointClouds();
 
-	viewer.addPointCloud<pcl::PointNormal>(cloud, "cloud");
-	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 1.0, 0.0, 0.0, "cloud");
-	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, "cloud");
+	/* viewer.addPointCloud<pcl::PointNormal>(cloud, "cloud"); */
+	/* viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 1.0, 0.0, 0.0, "cloud"); */
+	/* viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, "cloud"); */
 
 	viewer.addPointCloud<pcl::PointNormal>(map, "map");
 	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 0.0, 0.0, "map");
@@ -210,9 +213,9 @@ void GICPOptimization::Visualization(void)
 	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 1.0, 0.0, "map_filtered");
 	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, "map_filtered");
 
-	viewer.addPointCloud<pcl::PointNormal>(cloud_transformed, "cloud_transformed");
-	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 0.0, 1.0, "cloud_transformed");
-	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, "cloud_transformed");
+	viewer.addPointCloud<pcl::PointNormal>(cloud_filtered, "cloud_filtered");
+	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 0.0, 1.0, "cloud_filtered");
+	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, "cloud_filtered");
 
 	viewer.spinOnce();
 }
