@@ -62,7 +62,7 @@ GICPOptimization::GICPOptimization()
 
 	nhPrivate.param("pc_range", pc_range, {100.0});
 	nhPrivate.param("iterations", iterations, 100);
-	nhPrivate.param("correspond_dist", correspond_dist, {0.1});
+	nhPrivate.param("correspond_dist", correspond_dist, {10.0});
 	nhPrivate.param("trans_epsilon", trans_epsilon, {1e-8});
 	nhPrivate.param("fit_epsilon", fit_epsilon, {1.0e-8});
 	std::cout << "pc_range = " << pc_range << std::endl;
@@ -135,7 +135,7 @@ bool GICPOptimization::Transformation(geometry_msgs::PoseStamped pose)
 	/*set parameters*/
 	pcl::GeneralizedIterativeClosestPoint<pcl::PointNormal, pcl::PointNormal> gicp;
 	gicp.setMaximumIterations(iterations);
-	gicp.setMaxCorrespondenceDistance(correspond_dist);
+	// gicp.setMaxCorrespondenceDistance(correspond_dist);
 	gicp.setTransformationEpsilon(trans_epsilon);
 	gicp.setEuclideanFitnessEpsilon(fit_epsilon);
 	gicp.setInputSource(cloud);
