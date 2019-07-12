@@ -8,10 +8,11 @@
 #include <tf/tf.h>
 #include <pcl/common/transforms.h>
 #include <pcl/registration/icp.h>
+#include <pcl/registration/gicp.h>
 #include <pcl/filters/passthrough.h>
 /* #include <tf/transform_broadcaster.h> */
 
-class ICP{
+class ICPOptimization{
 	private:
 		ros::NodeHandle nh;
 		ros::NodeHandle nhPrivate;
@@ -38,7 +39,7 @@ class ICP{
 		double trans_epsilon;
 		double fit_epsilon;
 	public:
-		ICP();
+		ICPOptimization();
 		void CallbackPC(const sensor_msgs::PointCloud2ConstPtr& msg);
 		void CallbackPose(const geometry_msgs::PoseStampedConstPtr& msg);
 		void PCFilter(pcl::PointCloud<pcl::PointXYZ>::Ptr pc, pcl::PointCloud<pcl::PointXYZ>::Ptr pc_out, std::vector<double> range);
@@ -49,11 +50,11 @@ class ICP{
 		geometry_msgs::Quaternion QuatEigenToMsg(Eigen::Quaternionf q_eigen);
 };
 
-ICP::ICP()
+ICPOptimization::ICPOptimization()
 	:nhPrivate("~")
 {
-	sub_pc = nh.subscribe("/velodyne_points", 1, &ICP::CallbackPC, this);
-	sub_pose = nh.subscribe("/wall_ekf_slam/pose", 1, &ICP::CallbackPose, this);
+	sub_pc = nh.subscribe("/velodyne_points", 1, &ICPOptimization::CallbackPC, this);
+	sub_pose = nh.subscribe("/wall_ekf_slam/pose", 1, &ICPOptimization::CallbackPose, this);
 	pub_pc = nh.advertise<sensor_msgs::PointCloud2>("/map", 1);
 	viewer.setBackgroundColor(1, 1, 1);
 	viewer.addCoordinateSystem(0.5, "axis");
@@ -71,14 +72,14 @@ ICP::ICP()
 	std::cout << "fit_epsilon = " << fit_epsilon << std::endl;
 }
 
-void ICP::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
+void ICPOptimization::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 {
 	std::cout << "CALLBACK PC" << std::endl;
 	
 	pcl::fromROSMsg(*msg, *cloud);
 }
 
-void ICP::CallbackPose(const geometry_msgs::PoseStampedConstPtr& msg)
+void ICPOptimization::CallbackPose(const geometry_msgs::PoseStampedConstPtr& msg)
 {
 	std::cout << "CALLBACK POSE" << std::endl;
 
@@ -105,7 +106,7 @@ void ICP::CallbackPose(const geometry_msgs::PoseStampedConstPtr& msg)
 	if(!has_converged)	exit(1);
 }
 
-void ICP::PCFilter(pcl::PointCloud<pcl::PointXYZ>::Ptr pc_in, pcl::PointCloud<pcl::PointXYZ>::Ptr pc_out, std::vector<double> range)
+void ICPOptimization::PCFilter(pcl::PointCloud<pcl::PointXYZ>::Ptr pc_in, pcl::PointCloud<pcl::PointXYZ>::Ptr pc_out, std::vector<double> range)
 {
 	pcl::PassThrough<pcl::PointXYZ> pass;
 	pass.setInputCloud(pc_in);
@@ -118,7 +119,7 @@ void ICP::PCFilter(pcl::PointCloud<pcl::PointXYZ>::Ptr pc_in, pcl::PointCloud<pc
 	pass.filter(*pc_out);
 }
 
-bool ICP::Transformation(geometry_msgs::PoseStamped pose)
+bool ICPOptimization::Transformation(geometry_msgs::PoseStamped pose)
 {
 	pcl::PointCloud<pcl::PointXYZ>::Ptr map_filtered (new pcl::PointCloud<pcl::PointXYZ>);
 	
@@ -133,7 +134,8 @@ bool ICP::Transformation(geometry_msgs::PoseStamped pose)
 	PCFilter(map, map_filtered, range_map);
 
 	/*set parameters*/
-	pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
+	pcl::GeneralizedIterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
+	// pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
 	icp.setMaximumIterations(iterations);
 	icp.setMaxCorrespondenceDistance(correspond_dist);
 	icp.setTransformationEpsilon(trans_epsilon);
@@ -172,7 +174,7 @@ bool ICP::Transformation(geometry_msgs::PoseStamped pose)
 	return icp.hasConverged();
 }
 
-Eigen::Quaternionf ICP::QuatMsgToEigen(geometry_msgs::Quaternion q_msg)
+Eigen::Quaternionf ICPOptimization::QuatMsgToEigen(geometry_msgs::Quaternion q_msg)
 {
 	Eigen::Quaternionf q_eigen(
 		(float)q_msg.w,
@@ -184,7 +186,7 @@ Eigen::Quaternionf ICP::QuatMsgToEigen(geometry_msgs::Quaternion q_msg)
 	return q_eigen;
 }
 
-geometry_msgs::Quaternion ICP::QuatEigenToMsg(Eigen::Quaternionf q_eigen)
+geometry_msgs::Quaternion ICPOptimization::QuatEigenToMsg(Eigen::Quaternionf q_eigen)
 {
 	geometry_msgs::Quaternion q_msg;
 	q_msg.x = (double)q_eigen.x();
@@ -194,7 +196,7 @@ geometry_msgs::Quaternion ICP::QuatEigenToMsg(Eigen::Quaternionf q_eigen)
 	return q_msg;
 }
 
-void ICP::Visualization(void)
+void ICPOptimization::Visualization(void)
 {
 	viewer.removeAllPointClouds();
 
@@ -213,7 +215,7 @@ void ICP::Visualization(void)
 	viewer.spinOnce();
 }
 
-void ICP::Publication(void)
+void ICPOptimization::Publication(void)
 {
 	/*publish*/
 	sensor_msgs::PointCloud2 pc_pub;
@@ -236,7 +238,7 @@ int main(int argc, char** argv)
 {
 	ros::init(argc, argv, "icp");
 	
-	ICP icp;
+	ICPOptimization icp_optimization;
 
 	ros::spin();
 }
