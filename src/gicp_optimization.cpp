@@ -27,7 +27,7 @@ class GICPOptimization{
 		pcl::PointCloud<pcl::PointNormal>::Ptr map {new pcl::PointCloud<pcl::PointNormal>};
 		pcl::PointCloud<pcl::PointNormal>::Ptr cloud {new pcl::PointCloud<pcl::PointNormal>};
 		pcl::PointCloud<pcl::PointNormal>::Ptr cloud_transformed {new pcl::PointCloud<pcl::PointNormal>};
-		pcl::PointCloud<pcl::PointNormal>::Ptr map_filtered (new pcl::PointCloud<pcl::PointNormal>);
+		pcl::PointCloud<pcl::PointNormal>::Ptr map_filtered {new pcl::PointCloud<pcl::PointNormal>};
 		/*flags*/
 		bool first_callback_pose = true;
 		/*time*/
