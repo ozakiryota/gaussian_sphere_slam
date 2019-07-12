@@ -7,7 +7,7 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <tf/tf.h>
 #include <pcl/common/transforms.h>
-#include <pcl/registration/icp.h>
+#include <pcl/registration/gicp.h>
 #include <pcl/filters/passthrough.h>
 /* #include <tf/transform_broadcaster.h> */
 
@@ -133,7 +133,7 @@ bool ICPOptimization::Transformation(geometry_msgs::PoseStamped pose)
 	PCFilter(map, map_filtered, range_map);
 
 	/*set parameters*/
-	pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
+	pcl::GeneralizedIterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
 	icp.setMaximumIterations(iterations);
 	icp.setMaxCorrespondenceDistance(correspond_dist);
 	icp.setTransformationEpsilon(trans_epsilon);
