@@ -96,11 +96,11 @@ void ICP::CallbackPose(const geometry_msgs::PoseStampedConstPtr& msg)
 {
 	std::cout << "CALLBACK POSE" << std::endl;
 
-	if(first_callback_pose && map->points.empty()){
+	if(first_callback_pose || map->points.empty()){
 		*map = *cloud;
 	}
 	else{
-		// Transformation(*msg);
+		Transformation(*msg);
 	}
 
 	*map += *cloud_transformed;
@@ -154,7 +154,7 @@ void ICP::Transformation(geometry_msgs::PoseStamped pose)
 
 	/*print*/
 	std::cout << "Iterative Closest Point has converged:" << (bool)icp.hasConverged() << std::endl;
-	std::cout << " score: " << icp.getFitnessScore () << std::endl;
+	std::cout << "score: " << icp.getFitnessScore() << std::endl;
 	std::cout << "icp.getFinalTransformation()" << std::endl << icp.getFinalTransformation() << std::endl;
 	std::cout << "init_guess" << std::endl << init_guess << std::endl;
 
