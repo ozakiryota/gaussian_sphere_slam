@@ -11,7 +11,7 @@
 #include <pcl/filters/passthrough.h>
 /* #include <tf/transform_broadcaster.h> */
 
-class ICPOptimization{
+class GICPOptimization{
 	private:
 		ros::NodeHandle nh;
 		ros::NodeHandle nhPrivate;
@@ -22,11 +22,11 @@ class ICPOptimization{
 		ros::Publisher pub_pc;
 		// tf::TransformBroadcaster tf_broadcaster;
 		/*viewer*/
-		pcl::visualization::PCLVisualizer viewer{"icp"};
+		pcl::visualization::PCLVisualizer viewer{"gicp"};
 		/*cloud*/
-		pcl::PointCloud<pcl::PointXYZ>::Ptr map {new pcl::PointCloud<pcl::PointXYZ>};
-		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud {new pcl::PointCloud<pcl::PointXYZ>};
-		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_transformed {new pcl::PointCloud<pcl::PointXYZ>};
+		pcl::PointCloud<pcl::PointNormal>::Ptr map {new pcl::PointCloud<pcl::PointNormal>};
+		pcl::PointCloud<pcl::PointNormal>::Ptr cloud {new pcl::PointCloud<pcl::PointNormal>};
+		pcl::PointCloud<pcl::PointNormal>::Ptr cloud_transformed {new pcl::PointCloud<pcl::PointNormal>};
 		/*flags*/
 		bool first_callback_pose = true;
 		/*time*/
@@ -38,10 +38,10 @@ class ICPOptimization{
 		double trans_epsilon;
 		double fit_epsilon;
 	public:
-		ICPOptimization();
+		GICPOptimization();
 		void CallbackPC(const sensor_msgs::PointCloud2ConstPtr& msg);
 		void CallbackPose(const geometry_msgs::PoseStampedConstPtr& msg);
-		void PCFilter(pcl::PointCloud<pcl::PointXYZ>::Ptr pc, pcl::PointCloud<pcl::PointXYZ>::Ptr pc_out, std::vector<double> range);
+		void PCFilter(pcl::PointCloud<pcl::PointNormal>::Ptr pc, pcl::PointCloud<pcl::PointNormal>::Ptr pc_out, std::vector<double> range);
 		bool Transformation(geometry_msgs::PoseStamped pose);
 		void Visualization(void);
 		void Publication(void);
@@ -49,11 +49,11 @@ class ICPOptimization{
 		geometry_msgs::Quaternion QuatEigenToMsg(Eigen::Quaternionf q_eigen);
 };
 
-ICPOptimization::ICPOptimization()
+GICPOptimization::GICPOptimization()
 	:nhPrivate("~")
 {
-	sub_pc = nh.subscribe("/velodyne_points", 1, &ICPOptimization::CallbackPC, this);
-	sub_pose = nh.subscribe("/wall_ekf_slam/pose", 1, &ICPOptimization::CallbackPose, this);
+	sub_pc = nh.subscribe("/normals", 1, &GICPOptimization::CallbackPC, this);
+	sub_pose = nh.subscribe("/wall_ekf_slam/pose", 1, &GICPOptimization::CallbackPose, this);
 	pub_pc = nh.advertise<sensor_msgs::PointCloud2>("/map", 1);
 	viewer.setBackgroundColor(1, 1, 1);
 	viewer.addCoordinateSystem(0.5, "axis");
@@ -71,14 +71,14 @@ ICPOptimization::ICPOptimization()
 	std::cout << "fit_epsilon = " << fit_epsilon << std::endl;
 }
 
-void ICPOptimization::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
+void GICPOptimization::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 {
 	std::cout << "CALLBACK PC" << std::endl;
 	
 	pcl::fromROSMsg(*msg, *cloud);
 }
 
-void ICPOptimization::CallbackPose(const geometry_msgs::PoseStampedConstPtr& msg)
+void GICPOptimization::CallbackPose(const geometry_msgs::PoseStampedConstPtr& msg)
 {
 	std::cout << "CALLBACK POSE" << std::endl;
 
@@ -105,9 +105,9 @@ void ICPOptimization::CallbackPose(const geometry_msgs::PoseStampedConstPtr& msg
 	if(!has_converged)	exit(1);
 }
 
-void ICPOptimization::PCFilter(pcl::PointCloud<pcl::PointXYZ>::Ptr pc_in, pcl::PointCloud<pcl::PointXYZ>::Ptr pc_out, std::vector<double> range)
+void GICPOptimization::PCFilter(pcl::PointCloud<pcl::PointNormal>::Ptr pc_in, pcl::PointCloud<pcl::PointNormal>::Ptr pc_out, std::vector<double> range)
 {
-	pcl::PassThrough<pcl::PointXYZ> pass;
+	pcl::PassThrough<pcl::PointNormal> pass;
 	pass.setInputCloud(pc_in);
 	pass.setFilterFieldName("x");
 	pass.setFilterLimits(range[0], range[1]);
@@ -118,9 +118,9 @@ void ICPOptimization::PCFilter(pcl::PointCloud<pcl::PointXYZ>::Ptr pc_in, pcl::P
 	pass.filter(*pc_out);
 }
 
-bool ICPOptimization::Transformation(geometry_msgs::PoseStamped pose)
+bool GICPOptimization::Transformation(geometry_msgs::PoseStamped pose)
 {
-	pcl::PointCloud<pcl::PointXYZ>::Ptr map_filtered (new pcl::PointCloud<pcl::PointXYZ>);
+	pcl::PointCloud<pcl::PointNormal>::Ptr map_filtered (new pcl::PointCloud<pcl::PointNormal>);
 	
 	/*filter pc*/
 	std::vector<double> range_map{
@@ -133,13 +133,13 @@ bool ICPOptimization::Transformation(geometry_msgs::PoseStamped pose)
 	PCFilter(map, map_filtered, range_map);
 
 	/*set parameters*/
-	pcl::GeneralizedIterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
-	icp.setMaximumIterations(iterations);
-	icp.setMaxCorrespondenceDistance(correspond_dist);
-	icp.setTransformationEpsilon(trans_epsilon);
-	icp.setEuclideanFitnessEpsilon(fit_epsilon);
-	icp.setInputSource(cloud);
-	icp.setInputTarget(map_filtered);
+	pcl::GeneralizedIterativeClosestPoint<pcl::PointNormal, pcl::PointNormal> gicp;
+	gicp.setMaximumIterations(iterations);
+	gicp.setMaxCorrespondenceDistance(correspond_dist);
+	gicp.setTransformationEpsilon(trans_epsilon);
+	gicp.setEuclideanFitnessEpsilon(fit_epsilon);
+	gicp.setInputSource(cloud);
+	gicp.setInputTarget(map_filtered);
 
 	/*initial guess*/
 	Eigen::Translation3f init_translation(
@@ -153,26 +153,26 @@ bool ICPOptimization::Transformation(geometry_msgs::PoseStamped pose)
 	Eigen::Matrix4f init_guess = (init_translation*init_rotation).matrix();
 
 	/*align*/
-	icp.align(*cloud_transformed, init_guess);
-	// icp.computeTransformation(*cloud, init_guess);
-	// icp.align(*cloud_transformed);
+	gicp.align(*cloud_transformed, init_guess);
+	// gicp.computeTransformation(*cloud, init_guess);
+	// gicp.align(*cloud_transformed);
 
 	/*print*/
-	std::cout << "Iterative Closest Point has converged:" << (bool)icp.hasConverged() << std::endl;
-	std::cout << "score: " << icp.getFitnessScore() << std::endl;
-	std::cout << "icp.getFinalTransformation()" << std::endl << icp.getFinalTransformation() << std::endl;
+	std::cout << "Iterative Closest Point has converged:" << (bool)gicp.hasConverged() << std::endl;
+	std::cout << "score: " << gicp.getFitnessScore() << std::endl;
+	std::cout << "gicp.getFinalTransformation()" << std::endl << gicp.getFinalTransformation() << std::endl;
 	std::cout << "init_guess" << std::endl << init_guess << std::endl;
 
 	/*input*/
-	Eigen::Matrix4f m_transformation = icp.getFinalTransformation();
+	Eigen::Matrix4f m_transformation = gicp.getFinalTransformation();
 	Eigen::Matrix3f m_rot = m_transformation.block(0, 0, 3, 3);
 	Eigen::Quaternionf q_rot(m_rot);
 	q_rot.normalize();
 
-	return icp.hasConverged();
+	return gicp.hasConverged();
 }
 
-Eigen::Quaternionf ICPOptimization::QuatMsgToEigen(geometry_msgs::Quaternion q_msg)
+Eigen::Quaternionf GICPOptimization::QuatMsgToEigen(geometry_msgs::Quaternion q_msg)
 {
 	Eigen::Quaternionf q_eigen(
 		(float)q_msg.w,
@@ -184,7 +184,7 @@ Eigen::Quaternionf ICPOptimization::QuatMsgToEigen(geometry_msgs::Quaternion q_m
 	return q_eigen;
 }
 
-geometry_msgs::Quaternion ICPOptimization::QuatEigenToMsg(Eigen::Quaternionf q_eigen)
+geometry_msgs::Quaternion GICPOptimization::QuatEigenToMsg(Eigen::Quaternionf q_eigen)
 {
 	geometry_msgs::Quaternion q_msg;
 	q_msg.x = (double)q_eigen.x();
@@ -194,26 +194,26 @@ geometry_msgs::Quaternion ICPOptimization::QuatEigenToMsg(Eigen::Quaternionf q_e
 	return q_msg;
 }
 
-void ICPOptimization::Visualization(void)
+void GICPOptimization::Visualization(void)
 {
 	viewer.removeAllPointClouds();
 
-	viewer.addPointCloud<pcl::PointXYZ>(cloud, "cloud");
+	viewer.addPointCloud<pcl::PointNormal>(cloud, "cloud");
 	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 1.0, 0.0, 0.0, "cloud");
 	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, "cloud");
 
-	viewer.addPointCloud<pcl::PointXYZ>(map, "map");
+	viewer.addPointCloud<pcl::PointNormal>(map, "map");
 	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 1.0, 0.0, "map");
 	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, "map");
 
-	viewer.addPointCloud<pcl::PointXYZ>(cloud_transformed, "cloud_transformed");
+	viewer.addPointCloud<pcl::PointNormal>(cloud_transformed, "cloud_transformed");
 	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 0.0, 1.0, "cloud_transformed");
 	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, "cloud_transformed");
 
 	viewer.spinOnce();
 }
 
-void ICPOptimization::Publication(void)
+void GICPOptimization::Publication(void)
 {
 	/*publish*/
 	sensor_msgs::PointCloud2 pc_pub;
@@ -234,9 +234,9 @@ void ICPOptimization::Publication(void)
 
 int main(int argc, char** argv)
 {
-	ros::init(argc, argv, "icp");
+	ros::init(argc, argv, "gicp");
 	
-	ICPOptimization icp_optimization;
+	GICPOptimization gicp_optimization;
 
 	ros::spin();
 }

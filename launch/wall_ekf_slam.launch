@@ -23,7 +23,9 @@
 		<param name="mode_pcl_viewer_on" type="bool" value="false"/>
 	</node>
 	<node pkg="gaussian_sphere_slam" name="wall_ekf_slam" type="wall_ekf_slam" output="screen"/>
-	<node pkg="gaussian_sphere_slam" name="icp_optimization" type="icp_optimization" output="screen">
+
+	<!-- <node pkg="gaussian_sphere_slam" name="icp_optimization" type="icp_optimization" output="screen"> -->
+	<node pkg="gaussian_sphere_slam" name="gicp_optimization" type="gicp_optimization" output="screen">
 		<param name="pc_range" type="double" value="10"/>
 		<param name="iterations" type="int" value="50"/>
 		<param name="correspond_dist" type="double" value="0.1"/>
