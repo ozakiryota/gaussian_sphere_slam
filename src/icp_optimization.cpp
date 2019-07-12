@@ -8,10 +8,8 @@
 #include <tf/tf.h>
 #include <pcl/common/transforms.h>
 #include <pcl/registration/icp.h>
-/* #include <eigen_conversions/eigen_msg.h> */
 #include <pcl/filters/passthrough.h>
 /* #include <tf/transform_broadcaster.h> */
-/* #include <pcl_ros/transforms.h> */
 
 class ICP{
 	private:
@@ -29,8 +27,6 @@ class ICP{
 		pcl::PointCloud<pcl::PointXYZ>::Ptr map {new pcl::PointCloud<pcl::PointXYZ>};
 		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud {new pcl::PointCloud<pcl::PointXYZ>};
 		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_transformed {new pcl::PointCloud<pcl::PointXYZ>};
-		/*frame id*/
-		// std::string global_frame_id_name;
 		/*flags*/
 		bool first_callback_pose = true;
 		/*time*/
@@ -45,7 +41,7 @@ class ICP{
 		ICP();
 		void CallbackPC(const sensor_msgs::PointCloud2ConstPtr& msg);
 		void CallbackPose(const geometry_msgs::PoseStampedConstPtr& msg);
-		void Compute(void);
+		void PCFilter(pcl::PointCloud<pcl::PointXYZ>::Ptr pc, pcl::PointCloud<pcl::PointXYZ>::Ptr pc_out);
 		bool Transformation(geometry_msgs::PoseStamped pose);
 		void Visualization(void);
 		void Publication(void);
@@ -62,9 +58,6 @@ ICP::ICP()
 	viewer.setBackgroundColor(1, 1, 1);
 	viewer.addCoordinateSystem(0.5, "axis");
 	viewer.setCameraPosition(0.0, 0.0, 80.0, 0.0, 0.0, 0.0);
-
-	/* nhPrivate.param("global_frame_id", global_frame_id_name, std::string("/odom")); */
-	/* nhPrivate.param("local_frame_id", local_frame_id_name, std::string("/velodyne")); */
 
 	nhPrivate.param("pc_range", pc_range, {100.0});
 	nhPrivate.param("iterations", iterations, 100);
@@ -83,16 +76,6 @@ void ICP::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 	std::cout << "CALLBACK PC" << std::endl;
 	
 	pcl::fromROSMsg(*msg, *cloud);
-
-	pcl::PassThrough<pcl::PointXYZ> pass;
-	pass.setInputCloud(cloud);
-	pass.setFilterFieldName("x");
-	pass.setFilterLimits(-pc_range, pc_range);
-	pass.filter(*cloud);
-	pass.setInputCloud(cloud);
-	pass.setFilterFieldName("y");
-	pass.setFilterLimits(-pc_range, pc_range);
-	pass.filter(*cloud);
 }
 
 void ICP::CallbackPose(const geometry_msgs::PoseStampedConstPtr& msg)
@@ -122,16 +105,27 @@ void ICP::CallbackPose(const geometry_msgs::PoseStampedConstPtr& msg)
 	if(!has_converged)	exit(1);
 }
 
-/* void ICP::Compute(void) */
-/* { */
-/* 	std::cout << "COMPUTE" << std::endl; */
-/* 	Transformation(); */
-/* 	Visualization(); */
-/* 	Publication(); */
-/* } */
+void ICP::PCFilter(pcl::PointCloud<pcl::PointXYZ>::Ptr pc_in, pcl::PointCloud<pcl::PointXYZ>::Ptr pc_out)
+{
+	pcl::PassThrough<pcl::PointXYZ> pass;
+	pass.setInputCloud(pc_in);
+	pass.setFilterFieldName("x");
+	pass.setFilterLimits(-pc_range, pc_range);
+	pass.filter(*pc_out);
+	pass.setInputCloud(pc_out);
+	pass.setFilterFieldName("y");
+	pass.setFilterLimits(-pc_range, pc_range);
+	pass.filter(*pc_out);
+}
 
 bool ICP::Transformation(geometry_msgs::PoseStamped pose)
 {
+	pcl::PointCloud<pcl::PointXYZ>::Ptr map_filtered {new pcl::PointCloud<pcl::PointXYZ>};
+	
+	/*filter pc*/
+	PCFilter(cloud, cloud);
+	PCFilter(map, map_filtered);
+
 	/*set parameters*/
 	pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
 	icp.setMaximumIterations(iterations);
@@ -139,7 +133,7 @@ bool ICP::Transformation(geometry_msgs::PoseStamped pose)
 	icp.setTransformationEpsilon(trans_epsilon);
 	icp.setEuclideanFitnessEpsilon(fit_epsilon);
 	icp.setInputSource(cloud);
-	icp.setInputTarget(map);
+	icp.setInputTarget(map_filtered);
 
 	/*initial guess*/
 	Eigen::Translation3f init_translation(
@@ -238,16 +232,5 @@ int main(int argc, char** argv)
 	
 	ICP icp;
 
-	// ros::spin();
-
 	ros::spin();
-	/* ros::Rate loop_rate(20); */
-	/* while(ros::ok()){ */
-	/* 	std::cout << "----------" << std::endl; */
-	/* 	ros::spinOnce(); */
-	/* 	double time_start = ros::Time::now().toSec(); */
-	/* 	icp.Compute(); */
-	/* 	std::cout << "computation time: " << ros::Time::now().toSec() - time_start  << "[s]" << std::endl; */
-	/* 	loop_rate.sleep(); */
-	/* } */
 }
