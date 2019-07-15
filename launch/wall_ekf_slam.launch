@@ -27,7 +27,7 @@
 	<!-- <node pkg="gaussian_sphere_slam" name="icp_optimization" type="icp_optimization" output="screen"> -->
 	<node pkg="gaussian_sphere_slam" name="gicp_optimization" type="gicp_optimization" output="screen">
 		<param name="pc_range" type="double" value="7"/>
-		<param name="leafsize" type="float" value="0.01"/>
+		<param name="leafsize" value="0.01"/>
 		<param name="iterations" type="int" value="50"/>
 		<param name="correspond_dist" type="double" value="10.0"/>
 		<param name="trans_epsilon" type="double" value="1e-6"/>
