@@ -147,6 +147,7 @@ bool GICPOptimization::Transformation(geometry_msgs::PoseStamped pose)
 	};
 	PCPassThrough(cloud, cloud_filtered, std::vector<double> {-pc_range, pc_range, -pc_range, pc_range});
 	PCPassThrough(map, map_filtered, range_map);
+	// PCDownSampling(cloud_filtered, cloud_filtered);
 	PCDownSampling(map_filtered, map_filtered);
 
 	/*set parameters*/
