@@ -9,6 +9,7 @@
 #include <pcl/common/transforms.h>
 #include <pcl/registration/gicp.h>
 #include <pcl/filters/passthrough.h>
+#include <pcl/filters/voxel_grid.h>
 /* #include <tf/transform_broadcaster.h> */
 
 class GICPOptimization{
@@ -43,7 +44,8 @@ class GICPOptimization{
 		GICPOptimization();
 		void CallbackPC(const sensor_msgs::PointCloud2ConstPtr& msg);
 		void CallbackPose(const geometry_msgs::PoseStampedConstPtr& msg);
-		void PCFilter(pcl::PointCloud<pcl::PointNormal>::Ptr pc, pcl::PointCloud<pcl::PointNormal>::Ptr pc_out, std::vector<double> range);
+		void PCPassThrough(pcl::PointCloud<pcl::PointNormal>::Ptr pc_in, pcl::PointCloud<pcl::PointNormal>::Ptr pc_out, std::vector<double> range);
+		void PCDownSampling(pcl::PointCloud<pcl::PointNormal>::Ptr pc_in, pcl::PointCloud<pcl::PointNormal>::Ptr pc_out);
 		bool Transformation(geometry_msgs::PoseStamped pose);
 		void Visualization(void);
 		void Publication(void);
@@ -109,7 +111,7 @@ void GICPOptimization::CallbackPose(const geometry_msgs::PoseStampedConstPtr& ms
 	if(!has_converged)	exit(1);
 }
 
-void GICPOptimization::PCFilter(pcl::PointCloud<pcl::PointNormal>::Ptr pc_in, pcl::PointCloud<pcl::PointNormal>::Ptr pc_out, std::vector<double> range)
+void GICPOptimization::PCPassThrough(pcl::PointCloud<pcl::PointNormal>::Ptr pc_in, pcl::PointCloud<pcl::PointNormal>::Ptr pc_out, std::vector<double> range)
 {
 	pcl::PassThrough<pcl::PointNormal> pass;
 	pass.setInputCloud(pc_in);
@@ -122,6 +124,14 @@ void GICPOptimization::PCFilter(pcl::PointCloud<pcl::PointNormal>::Ptr pc_in, pc
 	pass.filter(*pc_out);
 }
 
+void GICPOptimization::PCDownSampling(pcl::PointCloud<pcl::PointNormal>::Ptr pc_in, pcl::PointCloud<pcl::PointNormal>::Ptr pc_out)
+{
+	pcl::VoxelGrid<pcl::PointNormal> vg;
+	vg.setInputCloud(pc_in);
+	vg.setLeafSize(0.01f, 0.01f, 0.01f);
+	vg.filter(*pc_out);
+}
+
 bool GICPOptimization::Transformation(geometry_msgs::PoseStamped pose)
 {
 	
@@ -132,8 +142,9 @@ bool GICPOptimization::Transformation(geometry_msgs::PoseStamped pose)
 		pose.pose.position.y - pc_range, 
 		pose.pose.position.y + pc_range
 	};
-	PCFilter(cloud, cloud_filtered, std::vector<double> {-pc_range, pc_range, -pc_range, pc_range});
-	PCFilter(map, map_filtered, range_map);
+	PCPassThrough(cloud, cloud_filtered, std::vector<double> {-pc_range, pc_range, -pc_range, pc_range});
+	PCPassThrough(map, map_filtered, range_map);
+	PCDownSampling(map_filtered, map_filtered);
 
 	/*set parameters*/
 	pcl::GeneralizedIterativeClosestPoint<pcl::PointNormal, pcl::PointNormal> gicp;
