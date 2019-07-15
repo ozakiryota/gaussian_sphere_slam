@@ -36,6 +36,7 @@ class GICPOptimization{
 		// ros::Time time_start;
 		/*parameters*/
 		double pc_range;
+		float leafsize;
 		int iterations;
 		double correspond_dist;
 		double trans_epsilon;
@@ -64,6 +65,7 @@ GICPOptimization::GICPOptimization()
 	viewer.setCameraPosition(0.0, 0.0, 80.0, 0.0, 0.0, 0.0);
 
 	nhPrivate.param("pc_range", pc_range, {100.0});
+	nhPrivate.param("leafsize", leafsize, {0.01});
 	nhPrivate.param("iterations", iterations, 100);
 	nhPrivate.param("correspond_dist", correspond_dist, {10.0});
 	nhPrivate.param("trans_epsilon", trans_epsilon, {1e-8});
@@ -128,19 +130,19 @@ void GICPOptimization::PCDownSampling(pcl::PointCloud<pcl::PointNormal>::Ptr pc_
 {
 	pcl::VoxelGrid<pcl::PointNormal> vg;
 	vg.setInputCloud(pc_in);
-	vg.setLeafSize(0.01f, 0.01f, 0.01f);
+	vg.setLeafSize(leafsize, leafsize, leafsize);
 	vg.filter(*pc_out);
 }
 
 bool GICPOptimization::Transformation(geometry_msgs::PoseStamped pose)
 {
-	
 	/*filter pc*/
+	const double margin = 0.5; 
 	std::vector<double> range_map{
-		pose.pose.position.x - pc_range, 
-		pose.pose.position.x + pc_range, 
-		pose.pose.position.y - pc_range, 
-		pose.pose.position.y + pc_range
+		pose.pose.position.x - pc_range - margin, 
+		pose.pose.position.x + pc_range + margin, 
+		pose.pose.position.y - pc_range - margin, 
+		pose.pose.position.y + pc_range + margin
 	};
 	PCPassThrough(cloud, cloud_filtered, std::vector<double> {-pc_range, pc_range, -pc_range, pc_range});
 	PCPassThrough(map, map_filtered, range_map);
