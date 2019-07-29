@@ -4,7 +4,7 @@
 
 	<!-- rosbag -->
 	<!-- <node pkg="rosbag" type="play" name="player" args="&#45;&#45;clock /home/amsl/ozaki/bagfiles/mocap/0119_infant/2019&#45;01&#45;19&#45;18&#45;26&#45;15.bag &#45;s 60"/> -->
-	<node pkg="rosbag" type="play" name="player" args="--clock /home/amsl/ozaki/bagfiles/infant/indoor_dkan/2019-04-04-14-27-47.bag -r 0.5"/>
+	<node pkg="rosbag" type="play" name="player" args="--clock /home/amsl/ozaki/bagfiles/infant/indoor_dkan/2019-04-04-14-27-47.bag"/>
 	<!-- <node pkg="rosbag" type="play" name="player" args="&#45;&#45;clock /home/amsl/ozaki/bagfiles/infant/indoor_dkan/2019&#45;04&#45;04&#45;14&#45;29&#45;45.bag"/> -->
 
 	<!-- sensor driver -->

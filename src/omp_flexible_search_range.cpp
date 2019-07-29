@@ -8,7 +8,7 @@
 #include <pcl/visualization/cloud_viewer.h>
 #include <omp.h>
 
-class DGaussianSphere{
+class NormalEstimationMultiThread{
 	private:
 		/*node handle*/
 		ros::NodeHandle nh;
@@ -27,21 +27,19 @@ class DGaussianSphere{
 		int skip;
 		double search_radius_ratio;
 	public:
-		DGaussianSphere();
+		NormalEstimationMultiThread();
 		void CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg);
 		void Computation(void);
 		double Getdepth(pcl::PointXYZ point);
 		std::vector<int> KdtreeSearch(pcl::PointXYZ searchpoint, double search_radius);
-		bool JudgeFlatness(const Eigen::Vector4f& plane_parameters, std::vector<int> indices);
-		double ComputeFittingError(const Eigen::Vector4f& N, std::vector<int> indices);
 		void Visualization(void);
 		void Publication(void);
 };
 
-DGaussianSphere::DGaussianSphere()
+NormalEstimationMultiThread::NormalEstimationMultiThread()
 	:nhPrivate("~")
 {
-	sub_pc = nh.subscribe("/velodyne_points", 1, &DGaussianSphere::CallbackPC, this);
+	sub_pc = nh.subscribe("/velodyne_points", 1, &NormalEstimationMultiThread::CallbackPC, this);
 	pub_pc = nh.advertise<sensor_msgs::PointCloud2>("/normals", 1);
 	viewer.setBackgroundColor(1, 1, 1);
 	viewer.addCoordinateSystem(0.8, "axis");
@@ -53,7 +51,7 @@ DGaussianSphere::DGaussianSphere()
 	std::cout << "search_radius_ratio = " << search_radius_ratio << std::endl;
 }
 
-void DGaussianSphere::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
+void NormalEstimationMultiThread::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 {
 	/* std::cout << "CALLBACK PC" << std::endl; */
 
@@ -69,19 +67,18 @@ void DGaussianSphere::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 	Visualization();
 }
 
-void DGaussianSphere::Computation(void)
+void NormalEstimationMultiThread::Computation(void)
 {
 	std::cout << "omp_get_max_threads() = " << omp_get_max_threads() << std::endl;
 
 	double time_start = ros::Time::now().toSec();
 
-	std::vector<bool> extract_indices((cloud->points.size()-1)/skip + 1, false);
+	std::vector<bool> delete_indices((cloud->points.size()-1)/skip + 1, false);
 
 	#ifdef _OPENMP
 	#pragma omp parallel for
 	#endif
 	for(size_t i=0;i<cloud->points.size();i+=skip){
-		size_t normal_index = i/skip;
 		/*search neighbor points*/
 		double laser_distance = Getdepth(cloud->points[i]);
 		double search_radius = search_radius_ratio*laser_distance;
@@ -90,9 +87,8 @@ void DGaussianSphere::Computation(void)
 		float curvature;
 		Eigen::Vector4f plane_parameters;
 		pcl::computePointNormal(*cloud, indices, plane_parameters, curvature);
-		/*judge*/
-		extract_indices[normal_index] = JudgeFlatness(plane_parameters, indices);
 		/*input*/
+		size_t normal_index = i/skip;
 		normals->points[normal_index].x = cloud->points[i].x;
 		normals->points[normal_index].y = cloud->points[i].y;
 		normals->points[normal_index].z = cloud->points[i].z;
@@ -103,11 +99,9 @@ void DGaussianSphere::Computation(void)
 		flipNormalTowardsViewpoint(cloud->points[i], 0.0, 0.0, 0.0, normals->points[normal_index].normal_x, normals->points[normal_index].normal_y, normals->points[normal_index].normal_z);
 	}
 	for(size_t i=0;i<normals->points.size();){
-		if(!extract_indices[i]){
+		if(std::isnan(normals->points[i].normal_x) || std::isnan(normals->points[i].normal_y) || std::isnan(normals->points[i].normal_z)){
 			std::cout << "deleted NAN normal" << std::endl;
 			normals->points.erase(normals->points.begin() + i);
-			extract_indices.erase(extract_indices.begin() + i);
-
 		}
 		else	i++;
 	}
@@ -115,7 +109,7 @@ void DGaussianSphere::Computation(void)
 	std::cout << "computation time [s] = " << ros::Time::now().toSec() - time_start << std::endl;
 }
 
-double DGaussianSphere::Getdepth(pcl::PointXYZ point)
+double NormalEstimationMultiThread::Getdepth(pcl::PointXYZ point)
 {
 	double depth = sqrt(
 		point.x*point.x
@@ -125,7 +119,7 @@ double DGaussianSphere::Getdepth(pcl::PointXYZ point)
 	return depth;
 }
 
-std::vector<int> DGaussianSphere::KdtreeSearch(pcl::PointXYZ searchpoint, double search_radius)
+std::vector<int> NormalEstimationMultiThread::KdtreeSearch(pcl::PointXYZ searchpoint, double search_radius)
 {
 	std::vector<int> pointIdxRadiusSearch;
 	std::vector<float> pointRadiusSquaredDistance;
@@ -133,43 +127,7 @@ std::vector<int> DGaussianSphere::KdtreeSearch(pcl::PointXYZ searchpoint, double
 	return pointIdxRadiusSearch; 
 }
 
-bool DGaussianSphere::JudgeFlatness(const Eigen::Vector4f& plane_parameters, std::vector<int> indices)
-{
-	/*threshold*/
-	const size_t threshold_num_neighborpoints = 10;
-	const double threshold_angle = 30.0;	//[deg]
-	const double threshold_fitting_error = 0.01;	//[m]
-
-	/*number of neighbor-points*/
-	if(indices.size() < threshold_num_neighborpoints)	return false;
-	/*nan*/
-	if(std::isnan(plane_parameters(0)) || std::isnan(plane_parameters(1)) || std::isnan(plane_parameters(2)))	return false;
-	/*angle*/
-	/* if(mode_remove_ground){ */
-	/* 	if(fabs(AngleBetweenVectors(tmp_normal, mainclass.g_vector)-M_PI/2.0)>threshold_angle/180.0*M_PI)	return false; */
-	/* } */
-	/*fitting error*/
-	if(ComputeFittingError(plane_parameters, indices) > threshold_fitting_error)	return false;
-	/*pass*/
-	return true;
-}
-
-double DGaussianSphere::ComputeFittingError(const Eigen::Vector4f& N, std::vector<int> indices)
-{
-	double ave_fitting_error = 0.0;
-	for(size_t i=0;i<indices.size();++i){
-		Eigen::Vector3f P(
-			cloud->points[indices[i]].x,
-			cloud->points[indices[i]].y,
-			cloud->points[indices[i]].z
-		);
-		ave_fitting_error += fabs(N.segment(0, 3).dot(P) + N(3))/N.segment(0, 3).norm();
-	}
-	ave_fitting_error /= (double)indices.size();
-	return ave_fitting_error;
-}
-
-void DGaussianSphere::Visualization(void)
+void NormalEstimationMultiThread::Visualization(void)
 {
 	viewer.removeAllPointClouds();
 
@@ -184,7 +142,7 @@ void DGaussianSphere::Visualization(void)
 	viewer.spinOnce();
 }
 
-void DGaussianSphere::Publication(void)
+void NormalEstimationMultiThread::Publication(void)
 {
 	normals->header.stamp = cloud->header.stamp;
 	normals->header.frame_id = cloud->header.frame_id;
@@ -199,7 +157,7 @@ int main(int argc, char** argv)
     ros::init(argc, argv, "normal_estimation_multi_thread");
 	std::cout << "Normal Estimation Multi Thread" << std::endl;
 	
-	DGaussianSphere normal_estimation_multi_thread;
+	NormalEstimationMultiThread normal_estimation_multi_thread;
 
 	ros::spin();
 }
