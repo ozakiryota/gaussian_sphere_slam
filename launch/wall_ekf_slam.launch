@@ -18,21 +18,21 @@
 	<node pkg="gyrodometry" name="initial_alignment" type="initial_alignment" output="screen">
 		<param name="initial_orientation_is_0001" type="bool" value="true"/>
 	</node>
-	<node pkg="gaussian_sphere_slam" name="d_gaussian_sphere" type="d_gaussian_sphere">
-		<!-- <param name="mode_floor_is_used" type="bool" value="false"/> -->
-		<param name="mode_pcl_viewer_on" type="bool" value="false"/>
+	<node pkg="gaussian_sphere_slam" name="d_gaussian_sphere" type="d_gaussian_sphere" output="screen">
+		<param name="skip" type="int" value="3"/>
+		<!-- <param name="mode_remove_ground" type="bool" value="true"/> -->
+		<param name="decimated_size" type="int" value="800"/>
 	</node>
 	<node pkg="gaussian_sphere_slam" name="wall_ekf_slam" type="wall_ekf_slam" output="screen"/>
 
-	<!-- <node pkg="gaussian_sphere_slam" name="icp_optimization" type="icp_optimization" output="screen"> -->
-	<node pkg="gaussian_sphere_slam" name="gicp_optimization" type="gicp_optimization" output="screen">
-		<param name="pc_range" type="double" value="7.0"/>
-		<param name="leafsize" value="0.01f"/>
-		<param name="iterations" type="int" value="50"/>
-		<param name="correspond_dist" type="double" value="10.0"/>
-		<param name="trans_epsilon" type="double" value="1e-6"/>
-		<param name="fit_epsilon" type="double" value="1.0e-6"/>
-	</node>
+	<!-- <node pkg="gaussian_sphere_slam" name="gicp_optimization" type="gicp_optimization" output="screen"> -->
+	<!-- 	<param name="pc_range" type="double" value="7.0"/> -->
+	<!-- 	<param name="leafsize" value="0.01f"/> -->
+	<!-- 	<param name="iterations" type="int" value="50"/> -->
+	<!-- 	<param name="correspond_dist" type="double" value="10.0"/> -->
+	<!-- 	<param name="trans_epsilon" type="double" value="1e&#45;6"/> -->
+	<!-- 	<param name="fit_epsilon" type="double" value="1.0e&#45;6"/> -->
+	<!-- </node> -->
 
 	<!-- comparisons -->
 	<node pkg="gyrodometry" name="gyrodometry3d" type="gyrodometry3d" output="screen">
