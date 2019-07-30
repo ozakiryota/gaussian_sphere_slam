@@ -527,6 +527,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 		/*reset*/
 		list_lm_info[i].was_observed_in_this_scan = false;
 	}
+	std::cout << "test1" << std::endl;
 	/*update*/
 	if(Zstacked.size()>0 && inipose_is_available)	ObservationUpdate(Zstacked, Hstacked, jHstacked, Diag_sigma);
 	// remover.Recover(X, P, list_lm_info);
@@ -537,11 +538,13 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 	const double sigma = 0.25;
 	P = sigma*Eigen::MatrixXd::Identity(X.size(), X.size());
 	P.block(0, 0, Ptmp.rows(), Ptmp.cols()) = Ptmp;
+	std::cout << "test2" << std::endl;
 	/*delete marged LM*/
 	for(size_t i=0;i<list_lm_info.size();){
 		if(list_lm_info[i].was_merged || list_lm_info[i].was_erased)	EraseLM(i);
 		else i++;
 	}
+	std::cout << "test3" << std::endl;
 	for(size_t i=0;i<list_erased_lm_info.size();i++)	PushBackMarkerPlanes(list_erased_lm_info[i]);
 
 	Publication();
