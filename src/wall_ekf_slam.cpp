@@ -195,7 +195,7 @@ void WallEKFSLAM::CallbackIMU(const sensor_msgs::ImuConstPtr& msg)
 {
 	/* std::cout << "Callback IMU" << std::endl; */
 
-	time_imu_now = ros::Time::now();
+	time_imu_now = msg->header.stamp;
 	double dt;
 	try{
 		dt = (time_imu_now - time_imu_last).toSec();
@@ -343,7 +343,7 @@ void WallEKFSLAM::CallbackOdom(const nav_msgs::OdometryConstPtr& msg)
 {
 	/* std::cout << "Callback Odom" << std::endl; */
 
-	time_odom_now = ros::Time::now();
+	time_odom_now = msg->header.stamp;
 	double dt;
 	try{
 		dt = (time_odom_now - time_odom_last).toSec();
