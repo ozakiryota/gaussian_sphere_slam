@@ -8,5 +8,4 @@
 		<param name="mode_open_viewer" type="bool" value="false"/>
 		<param name="decimated_size" type="int" value="800"/>
 	</node>
-	<node pkg="gaussian_sphere_slam" name="wall_ekf_slam" type="wall_ekf_slam" output="screen"/>
 </launch>
