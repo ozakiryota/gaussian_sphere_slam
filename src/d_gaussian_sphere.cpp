@@ -44,6 +44,7 @@ class DGaussianSphere{
 		bool JudgeFlatness(const Eigen::Vector4f& plane_parameters, std::vector<int> indices);
 		double AngleBetweenVectors(const Eigen::Vector3f& V1, const Eigen::Vector3f& V2);
 		double ComputeFittingError(const Eigen::Vector4f& N, std::vector<int> indices);
+		void DecimatePC(size_t limited_size);
 		void ClusterDGauss(void);
 		void Visualization(void);
 		void Publication(void);
@@ -77,6 +78,8 @@ void DGaussianSphere::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 
 	kdtree.setInputCloud(cloud);
 	Computation();
+	const size_t limited_size = 800;
+	DecimatePC(limited_size);
 	ClusterDGauss();
 
 	Publication();
@@ -99,6 +102,7 @@ void DGaussianSphere::Computation(void)
 
 	normals->points.resize((cloud->points.size()-1)/skip + 1);
 	std::vector<bool> extract_indices((cloud->points.size()-1)/skip + 1, false);
+	size_t counter = 0;
 
 	#ifdef _OPENMP
 	#pragma omp parallel for
@@ -206,6 +210,22 @@ double DGaussianSphere::ComputeFittingError(const Eigen::Vector4f& N, std::vecto
 	}
 	ave_fitting_error /= (double)indices.size();
 	return ave_fitting_error;
+}
+
+void DGaussianSphere::DecimatePC(size_t limited_size)
+{
+	double sparse_step = d_gaussian_sphere->points.size()/(double)limited_size;
+	pcl::PointCloud<pcl::PointXYZ>::Ptr tmp_pc (new pcl::PointCloud<pcl::PointXYZ>);
+	tmp_pc->points.resize(limited_size);
+
+	size_t counter = 0;
+	for(double f=0.0;f<d_gaussian_sphere->points.size();f+=sparse_step){
+		tmp_pc->points[f/sparse_step] = d_gaussian_sphere->points[f];
+		++counter;
+	}
+	d_gaussian_sphere = tmp_pc;
+	std::cout << "-> d_gaussian_sphere->points.size() = " << d_gaussian_sphere->points.size() << std::endl;
+	std::cout << "-> counter = " << counter << std::endl;
 }
 
 void DGaussianSphere::ClusterDGauss(void)
