@@ -2,6 +2,9 @@
 	<!-- global rosparam -->
 	<param name="use_sim_time" value="true"/>
 
+	<!-- rosbag -->
+	<node pkg="rosbag" type="play" name="player" args="--clock /home/amsl/ozaki/bagfiles/infant/indoor_dkan/2019-07-04-20-05-36.bag"/>
+
 	<node pkg="gaussian_sphere_slam" name="d_gaussian_sphere" type="d_gaussian_sphere" output="screen">
 		<param name="skip" type="int" value="3"/>
 		<!-- <param name="mode_remove_ground" type="bool" value="true"/> -->
