@@ -2,11 +2,6 @@
 	<!-- global rosparam -->
 	<param name="use_sim_time" value="true"/>
 
-	<!-- rosbag -->
-	<!-- <node pkg="rosbag" type="play" name="player" args="&#45;&#45;clock /home/amsl/ozaki/bagfiles/mocap/0119_infant/2019&#45;01&#45;19&#45;18&#45;26&#45;15.bag &#45;s 75"/> -->
-	<!-- <node pkg="rosbag" type="play" name="player" args="&#45;&#45;clock /home/amsl/ozaki/bagfiles/infant/indoor_dkan/2019&#45;05&#45;24&#45;18&#45;40&#45;39.bag"/> -->
-	<!-- <node pkg="rosbag" type="play" name="player" args="&#45;&#45;clock /home/amsl/ozaki/bagfiles/infant/indoor_dkan/2019&#45;07&#45;04&#45;20&#45;05&#45;36.bag"/> -->
-
 	<!-- rviz -->
 	<node pkg="rviz" type="rviz" name="rviz" args="-d /home/amsl/.rviz/wall_ekf_slam.rviz"/>
 
@@ -18,6 +13,7 @@
 	<node pkg="gyrodometry" name="initial_alignment" type="initial_alignment" output="screen">
 		<param name="initial_orientation_is_0001" type="bool" value="true"/>
 	</node>
+	<node pkg="gaussian_sphere_slam" name="wall_ekf_slam" type="wall_ekf_slam" output="screen"/>
 
 	<!-- comparisons -->
 	<node pkg="gyrodometry" name="gyrodometry3d" type="gyrodometry3d" output="screen">
