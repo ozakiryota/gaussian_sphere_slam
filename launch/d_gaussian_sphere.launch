@@ -7,9 +7,15 @@
 	<node pkg="rosbag" type="play" name="player" args="--clock /home/amsl/ozaki/bagfiles/infant/indoor_dkan/2019-04-04-14-27-47.bag"/>
 	<!-- <node pkg="rosbag" type="play" name="player" args="&#45;&#45;clock /home/amsl/ozaki/bagfiles/infant/indoor_dkan/2019&#45;04&#45;04&#45;14&#45;29&#45;45.bag"/> -->
 
+	<!-- rviz -->
+	<node pkg="rviz" type="rviz" name="rviz" args="-d $(find gaussian_sphere_slam)/rviz_config/d_gaussian_sphere.rviz"/>
+
 	<!-- sensor driver -->
 	<include file="$(find velodyne_pointcloud)/launch/32e_points.launch"/>
 
 	<!-- proposed method -->
-	<node pkg="gaussian_sphere_slam" name="d_gaussian_sphere" type="d_gaussian_sphere" output="screen"/>
+	<node pkg="gaussian_sphere_slam" name="d_gaussian_sphere" type="d_gaussian_sphere" output="screen">
+		<param name="skip" type="int" value="3"/>
+		<param name="mode_remove_ground" type="bool" value="true"/>
+	</node>
 </launch>

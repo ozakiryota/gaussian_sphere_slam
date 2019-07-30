@@ -23,9 +23,12 @@ class DGaussianSphere{
 		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud {new pcl::PointCloud<pcl::PointXYZ>};
 		pcl::PointCloud<pcl::PointNormal>::Ptr normals {new pcl::PointCloud<pcl::PointNormal>};
 		pcl::PointCloud<pcl::PointNormal>::Ptr normals_extracted {new pcl::PointCloud<pcl::PointNormal>};
+		/*objects*/
+		Eigen::Vector3f Gvector{0.0, 0.0, -1.0};	//tmp
 		/*parameters*/
 		int skip;
 		double search_radius_ratio;
+		bool mode_remove_ground;
 	public:
 		DGaussianSphere();
 		void CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg);
@@ -33,6 +36,7 @@ class DGaussianSphere{
 		double Getdepth(pcl::PointXYZ point);
 		std::vector<int> KdtreeSearch(pcl::PointXYZ searchpoint, double search_radius);
 		bool JudgeFlatness(const Eigen::Vector4f& plane_parameters, std::vector<int> indices);
+		double AngleBetweenVectors(const Eigen::Vector3f& V1, const Eigen::Vector3f& V2);
 		double ComputeFittingError(const Eigen::Vector4f& N, std::vector<int> indices);
 		void Visualization(void);
 		void Publication(void);
@@ -49,8 +53,10 @@ DGaussianSphere::DGaussianSphere()
 
 	nhPrivate.param("skip", skip, 3);
 	nhPrivate.param("search_radius_ratio", search_radius_ratio, 0.09);
+	nhPrivate.param("mode_remove_ground", mode_remove_ground, false);
 	std::cout << "skip = " << skip << std::endl;
 	std::cout << "search_radius_ratio = " << search_radius_ratio << std::endl;
+	std::cout << "mode_remove_ground = " << (bool)mode_remove_ground << std::endl;
 }
 
 void DGaussianSphere::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
@@ -104,10 +110,9 @@ void DGaussianSphere::Computation(void)
 	}
 	for(size_t i=0;i<normals->points.size();){
 		if(!extract_indices[i]){
-			std::cout << "deleted NAN normal" << std::endl;
+			std::cout << "remove unsused normal" << std::endl;
 			normals->points.erase(normals->points.begin() + i);
 			extract_indices.erase(extract_indices.begin() + i);
-
 		}
 		else	i++;
 	}
@@ -145,13 +150,19 @@ bool DGaussianSphere::JudgeFlatness(const Eigen::Vector4f& plane_parameters, std
 	/*nan*/
 	if(std::isnan(plane_parameters(0)) || std::isnan(plane_parameters(1)) || std::isnan(plane_parameters(2)))	return false;
 	/*angle*/
-	/* if(mode_remove_ground){ */
-	/* 	if(fabs(AngleBetweenVectors(tmp_normal, mainclass.g_vector)-M_PI/2.0)>threshold_angle/180.0*M_PI)	return false; */
-	/* } */
+	if(mode_remove_ground){
+		if(fabs(AngleBetweenVectors(plane_parameters.segment(0, 3), Gvector)-M_PI/2.0)>threshold_angle/180.0*M_PI)	return false;
+	}
 	/*fitting error*/
 	if(ComputeFittingError(plane_parameters, indices) > threshold_fitting_error)	return false;
 	/*pass*/
 	return true;
+}
+
+double DGaussianSphere::AngleBetweenVectors(const Eigen::Vector3f& V1, const Eigen::Vector3f& V2)
+{
+	double angle = acos(V1.dot(V2)/V1.norm()/V2.norm());
+	return angle;
 }
 
 double DGaussianSphere::ComputeFittingError(const Eigen::Vector4f& N, std::vector<int> indices)
