@@ -34,6 +34,7 @@ class DGaussianSphere{
 		int skip;
 		double search_radius_ratio;
 		bool mode_remove_ground;
+		int decimated_size;
 	public:
 		DGaussianSphere();
 		void CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg);
@@ -44,7 +45,7 @@ class DGaussianSphere{
 		bool JudgeFlatness(const Eigen::Vector4f& plane_parameters, std::vector<int> indices);
 		double AngleBetweenVectors(const Eigen::Vector3f& V1, const Eigen::Vector3f& V2);
 		double ComputeFittingError(const Eigen::Vector4f& N, std::vector<int> indices);
-		void DecimatePC(size_t decimated_size);
+		void DecimatePC(void);
 		void ClusterDGauss(void);
 		void Visualization(void);
 		void Publication(void);
@@ -63,9 +64,11 @@ DGaussianSphere::DGaussianSphere()
 	nhPrivate.param("skip", skip, 3);
 	nhPrivate.param("search_radius_ratio", search_radius_ratio, 0.09);
 	nhPrivate.param("mode_remove_ground", mode_remove_ground, false);
+	nhPrivate.param("decimated_size", decimated_size, 800);
 	std::cout << "skip = " << skip << std::endl;
 	std::cout << "search_radius_ratio = " << search_radius_ratio << std::endl;
 	std::cout << "mode_remove_ground = " << (bool)mode_remove_ground << std::endl;
+	std::cout << "decimated_size = " << decimated_size << std::endl;
 }
 
 void DGaussianSphere::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
@@ -78,8 +81,7 @@ void DGaussianSphere::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 
 	kdtree.setInputCloud(cloud);
 	Computation();
-	const size_t decimated_size = 800;
-	DecimatePC(decimated_size);
+	if(d_gaussian_sphere->points.size()>decimated_size)	DecimatePC();
 	ClusterDGauss();
 
 	Publication();
@@ -212,19 +214,19 @@ double DGaussianSphere::ComputeFittingError(const Eigen::Vector4f& N, std::vecto
 	return ave_fitting_error;
 }
 
-void DGaussianSphere::DecimatePC(size_t decimated_size)
+void DGaussianSphere::DecimatePC(void)
 {
+	std::cout << "d_gaussian_sphere->points.size() : " << d_gaussian_sphere->points.size() << " -> " << decimated_size << std::endl;
+
 	double sparse_step = d_gaussian_sphere->points.size()/(double)decimated_size;
 	pcl::PointCloud<pcl::PointXYZ>::Ptr tmp_pc (new pcl::PointCloud<pcl::PointXYZ>);
 	tmp_pc->points.resize(decimated_size);
 
-	for(size_t i=0;i<decimated_size;++i){
-		size_t original_index = i*sparse_step;
+	for(int i=0;i<decimated_size;++i){
+		int original_index = i*sparse_step;
 		tmp_pc->points[i] = d_gaussian_sphere->points[original_index];
 	}
 	d_gaussian_sphere = tmp_pc;
-
-	std::cout << "-> d_gaussian_sphere->points.size() = " << d_gaussian_sphere->points.size() << std::endl;
 }
 
 void DGaussianSphere::ClusterDGauss(void)
