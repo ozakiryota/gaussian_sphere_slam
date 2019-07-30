@@ -34,6 +34,7 @@ class DGaussianSphere{
 		int skip;
 		double search_radius_ratio;
 		bool mode_remove_ground;
+		bool mode_open_viewer;
 		int decimated_size;
 	public:
 		DGaussianSphere();
@@ -64,11 +65,15 @@ DGaussianSphere::DGaussianSphere()
 	nhPrivate.param("skip", skip, 3);
 	nhPrivate.param("search_radius_ratio", search_radius_ratio, 0.09);
 	nhPrivate.param("mode_remove_ground", mode_remove_ground, false);
+	nhPrivate.param("mode_open_viewer", mode_open_viewer, true);
 	nhPrivate.param("decimated_size", decimated_size, 800);
 	std::cout << "skip = " << skip << std::endl;
 	std::cout << "search_radius_ratio = " << search_radius_ratio << std::endl;
 	std::cout << "mode_remove_ground = " << (bool)mode_remove_ground << std::endl;
+	std::cout << "mode_open_viewer " << (bool)mode_open_viewer << std::endl;
 	std::cout << "decimated_size = " << decimated_size << std::endl;
+
+	if(!mode_open_viewer)	viewer.close();
 }
 
 void DGaussianSphere::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
@@ -85,7 +90,7 @@ void DGaussianSphere::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 	ClusterDGauss();
 
 	Publication();
-	Visualization();
+	if(mode_open_viewer)	Visualization();
 }
 
 void DGaussianSphere::ClearPC(void)
