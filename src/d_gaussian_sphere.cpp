@@ -44,7 +44,7 @@ class DGaussianSphere{
 		bool JudgeFlatness(const Eigen::Vector4f& plane_parameters, std::vector<int> indices);
 		double AngleBetweenVectors(const Eigen::Vector3f& V1, const Eigen::Vector3f& V2);
 		double ComputeFittingError(const Eigen::Vector4f& N, std::vector<int> indices);
-		void DecimatePC(size_t limited_size);
+		void DecimatePC(size_t decimated_size);
 		void ClusterDGauss(void);
 		void Visualization(void);
 		void Publication(void);
@@ -78,8 +78,8 @@ void DGaussianSphere::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 
 	kdtree.setInputCloud(cloud);
 	Computation();
-	const size_t limited_size = 800;
-	DecimatePC(limited_size);
+	const size_t decimated_size = 800;
+	DecimatePC(decimated_size);
 	ClusterDGauss();
 
 	Publication();
@@ -139,9 +139,9 @@ void DGaussianSphere::Computation(void)
 			normals_extracted->points.push_back(normals->points[i]);
 			/*d-gaussian shpere*/
 			pcl::PointXYZ tmp;
-			tmp.x = -normals->points[i].data_n[3]*normals->points[i].data_n[0];
-			tmp.y = -normals->points[i].data_n[3]*normals->points[i].data_n[1];
-			tmp.z = -normals->points[i].data_n[3]*normals->points[i].data_n[2];
+			tmp.x = -fabs(normals->points[i].data_n[3])*normals->points[i].data_n[0];
+			tmp.y = -fabs(normals->points[i].data_n[3])*normals->points[i].data_n[1];
+			tmp.z = -fabs(normals->points[i].data_n[3])*normals->points[i].data_n[2];
 			d_gaussian_sphere->points.push_back(tmp);
 			/* std::cout << "remove unsused normal" << std::endl; */
 			/* normals->points.erase(normals->points.begin() + i); */
@@ -212,20 +212,19 @@ double DGaussianSphere::ComputeFittingError(const Eigen::Vector4f& N, std::vecto
 	return ave_fitting_error;
 }
 
-void DGaussianSphere::DecimatePC(size_t limited_size)
+void DGaussianSphere::DecimatePC(size_t decimated_size)
 {
-	double sparse_step = d_gaussian_sphere->points.size()/(double)limited_size;
+	double sparse_step = d_gaussian_sphere->points.size()/(double)decimated_size;
 	pcl::PointCloud<pcl::PointXYZ>::Ptr tmp_pc (new pcl::PointCloud<pcl::PointXYZ>);
-	tmp_pc->points.resize(limited_size);
+	tmp_pc->points.resize(decimated_size);
 
-	size_t counter = 0;
-	for(double f=0.0;f<d_gaussian_sphere->points.size();f+=sparse_step){
-		tmp_pc->points[f/sparse_step] = d_gaussian_sphere->points[f];
-		++counter;
+	for(size_t i=0;i<decimated_size;++i){
+		size_t original_index = i*sparse_step;
+		tmp_pc->points[i] = d_gaussian_sphere->points[original_index];
 	}
 	d_gaussian_sphere = tmp_pc;
+
 	std::cout << "-> d_gaussian_sphere->points.size() = " << d_gaussian_sphere->points.size() << std::endl;
-	std::cout << "-> counter = " << counter << std::endl;
 }
 
 void DGaussianSphere::ClusterDGauss(void)

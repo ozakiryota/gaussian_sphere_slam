@@ -16,6 +16,6 @@
 	<!-- proposed method -->
 	<node pkg="gaussian_sphere_slam" name="d_gaussian_sphere" type="d_gaussian_sphere" output="screen">
 		<param name="skip" type="int" value="3"/>
-		<param name="mode_remove_ground" type="bool" value="true"/>
+		<!-- <param name="mode_remove_ground" type="bool" value="true"/> -->
 	</node>
 </launch>
