@@ -8,7 +8,7 @@
 	<node pkg="rosbag" type="play" name="player" args="--clock /home/amsl/ozaki/bagfiles/infant/indoor_dkan/2019-07-04-20-05-36.bag"/>
 
 	<!-- rviz -->
-	<node pkg="rviz" type="rviz" name="rviz" args="-d /home/amsl/.rviz/wall_ekf_slam.rviz"/>
+	<node pkg="rviz" type="rviz" name="rviz_wall_ekf_slam" args="-d /home/amsl/.rviz/wall_ekf_slam.rviz"/>
 
 	<!-- sensor driver -->
 	<include file="$(find velodyne_pointcloud)/launch/32e_points.launch"/>
