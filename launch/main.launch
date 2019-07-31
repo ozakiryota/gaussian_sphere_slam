@@ -24,11 +24,11 @@
 	<node pkg="gyrodometry" name="gyrodometry3d" type="gyrodometry3d" output="screen">
 		<remap from="/odom" to="/tinypower/odom/republished"/>
 	</node>
-	<!-- <include file="$(find loam_velodyne)/launch/hector_loam_velodyne.launch"/> -->
-	<!-- <node pkg="msg_conversion" type="odometry_zxy_to_xyz" name="odometry_zxy_to_xyz"> -->
-	<!-- 	<remap from="/odom" to="/integrated_to_init"/> -->
-	<!-- 	<remap from="/odom/change_axis" to="/loamvelodyne_odometry"/> -->
-	<!-- </node> -->
+	<include file="$(find loam_velodyne)/launch/hector_loam_velodyne.launch"/>
+	<node pkg="msg_conversion" type="odometry_zxy_to_xyz" name="odometry_zxy_to_xyz">
+		<remap from="/odom" to="/integrated_to_init"/>
+		<remap from="/odom/change_axis" to="/loamvelodyne_odometry"/>
+	</node>
 
 	<!-- for visualize trajectory -->
 	<node pkg="msg_conversion" type="posestamped_to_odometry" name="posestamped_to_odometry">
