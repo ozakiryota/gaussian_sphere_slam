@@ -950,10 +950,14 @@ void WallEKFSLAM::EraseLM(int index)
 	/*P*/
 	Eigen::MatrixXd tmp_P = P;
 	P.resize(P.cols() - size_wall_state, P.rows() - size_wall_state);
-	P.block(0, 0, delimit_point, delimit_point) = tmp_P.block(0, 0, delimit_point, delimit_point);	//upper-left
-	P.block(0, delimit_point, delimit_point, P.cols()-delimit_point) = tmp_P.block(0, delimit_point_, delimit_point, tmp_P.cols()-delimit_point_);	//upper-right
-	P.block(delimit_point, 0, P.rows()-delimit_point, delimit_point) = tmp_P.block(delimit_point_, 0, tmp_P.rows()-delimit_point_, delimit_point);	//lower-left
-	P.block(delimit_point, delimit_point, P.rows()-delimit_point, P.cols()-delimit_point) = tmp_P.block(delimit_point_, delimit_point_, tmp_P.rows()-delimit_point_, tmp_P.cols()-delimit_point_);	//lower-right
+	/*P-upper-left*/
+	P.block(0, 0, delimit_point, delimit_point) = tmp_P.block(0, 0, delimit_point, delimit_point);
+	/*P-upper-right*/
+	P.block(0, delimit_point, delimit_point, P.cols()-delimit_point) = tmp_P.block(0, delimit_point_, delimit_point, tmp_P.cols()-delimit_point_);
+	/*P-lower-left*/
+	P.block(delimit_point, 0, P.rows()-delimit_point, delimit_point) = tmp_P.block(delimit_point_, 0, tmp_P.rows()-delimit_point_, delimit_point);
+	/*P-lower-right*/
+	P.block(delimit_point, delimit_point, P.rows()-delimit_point, P.cols()-delimit_point) = tmp_P.block(delimit_point_, delimit_point_, tmp_P.rows()-delimit_point_, tmp_P.cols()-delimit_point_);
 }
 
 Eigen::Vector3d WallEKFSLAM::PlaneLocalToGlobal(const Eigen::Vector3d& Nl)
@@ -1172,25 +1176,29 @@ void WallEKFSLAM::RemoveUnavailableLM::Remove(Eigen::VectorXd& X, Eigen::MatrixX
 		// std::cout << "X = " << std::endl << X << std::endl;
 		// std::cout << "P = " << std::endl << P << std::endl;
 		// for(size_t i=0;i<unavailable_lm_indices.size();i++)	std::cout << "unavailable_lm_indices[i] = " << unavailable_lm_indices[i]  << std::endl;
-		X = X_;
-		P = P_;
+		// X = X_;
+		// P = P_;
 		for(size_t i=0;i<unavailable_lm_indices.size();i++){
 			/*delmit point*/
 			int index = unavailable_lm_indices[i] - i;
 			int delimit_point = size_robot_state_ + index*size_wall_state_;
 			int delimit_point_ = size_robot_state_ + (index+1)*size_wall_state_;
 			/*X*/
-			Eigen::VectorXd tmp_X = X;
+			Eigen::VectorXd tmp_X = X_;
 			X.resize(X.size() - size_wall_state_);
 			X.segment(0, delimit_point) = tmp_X.segment(0, delimit_point);
 			X.segment(delimit_point, X.size() - delimit_point) = tmp_X.segment(delimit_point_, tmp_X.size() - delimit_point_);
 			/*P*/
-			Eigen::MatrixXd tmp_P = P;
+			Eigen::MatrixXd tmp_P = P_;
 			P.resize(P.cols() - size_wall_state_, P.rows() - size_wall_state_);
+			/*P-upper-left*/
 			P.block(0, 0, delimit_point, delimit_point) = tmp_P.block(0, 0, delimit_point, delimit_point);
-			P.block(0, delimit_point, delimit_point, P.cols()-delimit_point) = tmp_P.block(0, delimit_point_, delimit_point_, P.cols()-delimit_point_);
-			P.block(delimit_point, 0, P.rows()-delimit_point, delimit_point) = tmp_P.block(delimit_point_, 0, P.rows()-delimit_point_, delimit_point_);
-			P.block(delimit_point, delimit_point, P.rows()-delimit_point, P.cols()-delimit_point) = tmp_P.block(delimit_point_, delimit_point_, P.rows()-delimit_point_, P.cols()-delimit_point_);
+			/*P-upper-right*/
+			P.block(0, delimit_point, delimit_point, P.cols()-delimit_point) = tmp_P.block(0, delimit_point_, delimit_point, tmp_P.cols()-delimit_point_);
+			/*P-lower-left*/
+			P.block(delimit_point, 0, P.rows()-delimit_point, delimit_point) = tmp_P.block(delimit_point_, 0, tmp_P.rows()-delimit_point_, delimit_point);
+			/*P-lower-right*/
+			P.block(delimit_point, delimit_point, P.rows()-delimit_point, P.cols()-delimit_point) = tmp_P.block(delimit_point_, delimit_point_, tmp_P.rows()-delimit_point_, tmp_P.cols()-delimit_point_);
 			/*LM list*/
 			list_lm_info.erase(list_lm_info.begin() + index);
 		}
@@ -1209,10 +1217,10 @@ void WallEKFSLAM::RemoveUnavailableLM::Recover(Eigen::VectorXd& X, Eigen::Matrix
 		Eigen::VectorXd tmp_X = X_;
 		Eigen::MatrixXd tmp_P = P_;
 
-		/*robot*/
+		/*robot state*/
 		tmp_X.segment(0, size_robot_state_) = X.segment(0, size_robot_state_);
 		tmp_P.block(0, 0, size_robot_state_, size_robot_state_) = P.block(0, 0, size_robot_state_, size_robot_state_);
-		/*LM*/
+		/*LM state*/
 		for(size_t i=0;i<available_lm_indices.size();i++){
 			tmp_X.segment(size_robot_state_ + available_lm_indices[i]*size_wall_state_, size_wall_state_) = X.segment(size_robot_state_ + i*size_wall_state_, size_wall_state_);
 			for(size_t j=0;j<available_lm_indices.size();j++){
