@@ -222,12 +222,12 @@ void WallEKFSLAM::CallbackIMU(const sensor_msgs::ImuConstPtr& msg)
 
 void WallEKFSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 {
-	// RemoveUnavailableLM remover(X, P, size_robot_state, size_wall_state, list_lm_info);
-	// for(size_t i=0;i<list_lm_info.size();i++){
-	// 	if(list_lm_info[i].available)	remover.InputAvailableLMIndex(i);
-	// 	else	remover.InputUnavailableLMIndex(i);
-	// }
-	// remover.Remove(X, P, list_lm_info);
+	RemoveUnavailableLM remover(X, P, size_robot_state, size_wall_state, list_lm_info);
+	for(size_t i=0;i<list_lm_info.size();i++){
+		if(list_lm_info[i].available)	remover.InputAvailableLMIndex(i);
+		else	remover.InputUnavailableLMIndex(i);
+	}
+	remover.Remove(X, P, list_lm_info);
 
 	/* std::cout << "PredictionIMU" << std::endl; */
 	double x = X(0);
@@ -292,7 +292,7 @@ void WallEKFSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 	X = F;
 	P = jF*P*jF.transpose() + Q;
 	
-	// remover.Recover(X, P, list_lm_info);
+	remover.Recover(X, P, list_lm_info);
 
 	/* std::cout << "X =" << std::endl << X << std::endl; */
 	/* std::cout << "P =" << std::endl << P << std::endl; */
@@ -363,12 +363,12 @@ void WallEKFSLAM::CallbackOdom(const nav_msgs::OdometryConstPtr& msg)
 void WallEKFSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 {
 	/* std::cout << "Prediction Odom" << std::endl; */
-	// RemoveUnavailableLM remover(X, P, size_robot_state, size_wall_state, list_lm_info);
-	// for(size_t i=0;i<list_lm_info.size();i++){
-	// 	if(list_lm_info[i].available)	remover.InputAvailableLMIndex(i);
-	// 	else	remover.InputUnavailableLMIndex(i);
-	// }
-	// remover.Remove(X, P, list_lm_info);
+	RemoveUnavailableLM remover(X, P, size_robot_state, size_wall_state, list_lm_info);
+	for(size_t i=0;i<list_lm_info.size();i++){
+		if(list_lm_info[i].available)	remover.InputAvailableLMIndex(i);
+		else	remover.InputUnavailableLMIndex(i);
+	}
+	remover.Remove(X, P, list_lm_info);
 
 	double x = X(0);
 	double y = X(1);
@@ -422,7 +422,7 @@ void WallEKFSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 	X = F;
 	P = jF*P*jF.transpose() + Q;
 
-	// remover.Recover(X, P, list_lm_info);
+	remover.Recover(X, P, list_lm_info);
 }
 
 void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr &msg)
@@ -440,12 +440,12 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 	planes.markers.clear();	//visualization
 
 	JudgeWallsCanBeObserbed();
-	// RemoveUnavailableLM remover(X, P, size_robot_state, size_wall_state, list_lm_info);
-	// for(size_t i=0;i<list_lm_info.size();i++){
-	// 	if(list_lm_info[i].available)	remover.InputAvailableLMIndex(i);
-	// 	else	remover.InputUnavailableLMIndex(i);
-	// }
-	// remover.Remove(X, P, list_lm_info);
+	RemoveUnavailableLM remover(X, P, size_robot_state, size_wall_state, list_lm_info);
+	for(size_t i=0;i<list_lm_info.size();i++){
+		if(list_lm_info[i].available)	remover.InputAvailableLMIndex(i);
+		else	remover.InputUnavailableLMIndex(i);
+	}
+	remover.Remove(X, P, list_lm_info);
 
 	int num_wall = (X.size() - size_robot_state)/size_wall_state;
 	/*matching*/
@@ -529,7 +529,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 	}
 	/*update*/
 	if(Zstacked.size()>0 && inipose_is_available)	ObservationUpdate(Zstacked, Hstacked, jHstacked, Diag_sigma);
-	// remover.Recover(X, P, list_lm_info);
+	remover.Recover(X, P, list_lm_info);
 	/*Registration of new walls*/
 	X.conservativeResize(X.size() + Xnew.size());
 	X.segment(X.size() - Xnew.size(), Xnew.size()) = Xnew;
@@ -1176,20 +1176,20 @@ void WallEKFSLAM::RemoveUnavailableLM::Remove(Eigen::VectorXd& X, Eigen::MatrixX
 		// std::cout << "X = " << std::endl << X << std::endl;
 		// std::cout << "P = " << std::endl << P << std::endl;
 		// for(size_t i=0;i<unavailable_lm_indices.size();i++)	std::cout << "unavailable_lm_indices[i] = " << unavailable_lm_indices[i]  << std::endl;
-		// X = X_;
-		// P = P_;
+		X = X_;
+		P = P_;
 		for(size_t i=0;i<unavailable_lm_indices.size();i++){
 			/*delmit point*/
 			int index = unavailable_lm_indices[i] - i;
 			int delimit_point = size_robot_state_ + index*size_wall_state_;
 			int delimit_point_ = size_robot_state_ + (index+1)*size_wall_state_;
 			/*X*/
-			Eigen::VectorXd tmp_X = X_;
+			Eigen::VectorXd tmp_X = X;
 			X.resize(X.size() - size_wall_state_);
 			X.segment(0, delimit_point) = tmp_X.segment(0, delimit_point);
 			X.segment(delimit_point, X.size() - delimit_point) = tmp_X.segment(delimit_point_, tmp_X.size() - delimit_point_);
 			/*P*/
-			Eigen::MatrixXd tmp_P = P_;
+			Eigen::MatrixXd tmp_P = P;
 			P.resize(P.cols() - size_wall_state_, P.rows() - size_wall_state_);
 			/*P-upper-left*/
 			P.block(0, 0, delimit_point, delimit_point) = tmp_P.block(0, 0, delimit_point, delimit_point);
@@ -1210,8 +1210,8 @@ void WallEKFSLAM::RemoveUnavailableLM::Remove(Eigen::VectorXd& X, Eigen::MatrixX
 void WallEKFSLAM::RemoveUnavailableLM::Recover(Eigen::VectorXd& X, Eigen::MatrixXd& P, std::vector<LMInfo>& list_lm_info)
 {
 	if(unavailable_lm_indices.size()!=0){
-		std::cout << "X = " << std::endl << X << std::endl;
-		std::cout << "P = " << std::endl << P << std::endl;
+		/* std::cout << "X = " << std::endl << X << std::endl; */
+		/* std::cout << "P = " << std::endl << P << std::endl; */
 		for(size_t i=0;i<available_lm_indices.size();i++)	std::cout << "available_lm_indices[i] = " << available_lm_indices[i]  << std::endl;
 
 		Eigen::VectorXd tmp_X = X_;
@@ -1223,17 +1223,36 @@ void WallEKFSLAM::RemoveUnavailableLM::Recover(Eigen::VectorXd& X, Eigen::Matrix
 		/*LM state*/
 		for(size_t i=0;i<available_lm_indices.size();i++){
 			tmp_X.segment(size_robot_state_ + available_lm_indices[i]*size_wall_state_, size_wall_state_) = X.segment(size_robot_state_ + i*size_wall_state_, size_wall_state_);
+			/*P-row-left*/
+			tmp_P.block(
+				size_robot_state_ + available_lm_indices[i]*size_wall_state_,
+				0,
+				size_wall_state_,
+				size_robot_state_
+			) = P.block(size_robot_state_ + i*size_wall_state_, 0, size_wall_state_, size_robot_state_);
+			/*P-col-upper*/
+			tmp_P.block(
+				0,
+				size_robot_state_ + available_lm_indices[i]*size_wall_state_,
+				size_robot_state_,
+				size_wall_state_
+			) = P.block(0, size_robot_state_ + i*size_wall_state_, size_robot_state_, size_wall_state_);
+			/*p-inside*/
 			for(size_t j=0;j<available_lm_indices.size();j++){
-				tmp_P.block(size_robot_state_ + available_lm_indices[i]*size_wall_state_, size_robot_state_ + available_lm_indices[j]*size_wall_state_, size_wall_state_, size_wall_state_) = P.block(size_robot_state_ + i*size_wall_state_, size_robot_state_ + j*size_wall_state_, size_wall_state_, size_wall_state_);
-				// tmp_P(available_lm_indices[i], available_lm_indices[j]) = P(i, j);
+				tmp_P.block(
+					size_robot_state_ + available_lm_indices[i]*size_wall_state_,
+					size_robot_state_ + available_lm_indices[j]*size_wall_state_,
+					size_wall_state_,
+					size_wall_state_
+				) = P.block(size_robot_state_ + i*size_wall_state_, size_robot_state_ + j*size_wall_state_, size_wall_state_, size_wall_state_);
 			}
 		}
 
 		X = tmp_X;
 		P = tmp_P;
 		std::cout << "recovered" << std::endl;
-		std::cout << "X = " << std::endl << X << std::endl;
-		std::cout << "P = " << std::endl << P << std::endl;
+		/* std::cout << "X = " << std::endl << X << std::endl; */
+		/* std::cout << "P = " << std::endl << P << std::endl; */
 		for(size_t i=0;i<unavailable_lm_indices.size();i++){
 			int index = unavailable_lm_indices[i];
 			list_lm_info.insert(list_lm_info.begin() + index, list_lm_info_[index]);
