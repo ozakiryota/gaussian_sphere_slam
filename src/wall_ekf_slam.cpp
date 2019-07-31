@@ -527,7 +527,6 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 		/*reset*/
 		list_lm_info[i].was_observed_in_this_scan = false;
 	}
-	std::cout << "test1" << std::endl;
 	/*update*/
 	if(Zstacked.size()>0 && inipose_is_available)	ObservationUpdate(Zstacked, Hstacked, jHstacked, Diag_sigma);
 	// remover.Recover(X, P, list_lm_info);
@@ -538,13 +537,13 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 	const double sigma = 0.25;
 	P = sigma*Eigen::MatrixXd::Identity(X.size(), X.size());
 	P.block(0, 0, Ptmp.rows(), Ptmp.cols()) = Ptmp;
-	std::cout << "test2" << std::endl;
+	std::cout << "test1" << std::endl;
 	/*delete marged LM*/
 	for(size_t i=0;i<list_lm_info.size();){
 		if(list_lm_info[i].was_merged || list_lm_info[i].was_erased)	EraseLM(i);
 		else i++;
 	}
-	std::cout << "test3" << std::endl;
+	std::cout << "test2" << std::endl;
 	for(size_t i=0;i<list_erased_lm_info.size();i++)	PushBackMarkerPlanes(list_erased_lm_info[i]);
 
 	Publication();
@@ -849,9 +848,12 @@ void WallEKFSLAM::UpdateLMInfo(int lm_id)
 	tf::Quaternion q_origin_orientation_old;
 	quaternionMsgToTF(list_lm_info[lm_id].origin.orientation, q_origin_orientation_old);
 	double theta = acos(list_lm_info[lm_id].Ng.dot(Ng)/list_lm_info[lm_id].Ng.norm()/Ng.norm());
-	if(std::isnan(theta))	theta = 0.0;
 	Eigen::Vector3d Axis = list_lm_info[lm_id].Ng.cross(Ng);
 	Axis.normalize();
+	if(std::isnan(theta) || std::isnan(Axis(0))){
+		theta = 0.0;
+		Axis = {0.0, 0.0, 0.0};
+	}
 	tf::Quaternion q_rotation(sin(theta/2.0)*Axis(0), sin(theta/2.0)*Axis(1), sin(theta/2.0)*Axis(2), cos(theta/2.0));
 	q_rotation.normalize();
 	/*input*/
@@ -950,10 +952,10 @@ void WallEKFSLAM::EraseLM(int index)
 	/*P*/
 	Eigen::MatrixXd tmp_P = P;
 	P.resize(P.cols() - size_wall_state, P.rows() - size_wall_state);
-	P.block(0, 0, delimit_point, delimit_point) = tmp_P.block(0, 0, delimit_point, delimit_point);
-	P.block(0, delimit_point, delimit_point, P.cols()-delimit_point) = tmp_P.block(0, delimit_point_, delimit_point_, P.cols()-delimit_point_);
-	P.block(delimit_point, 0, P.rows()-delimit_point, delimit_point) = tmp_P.block(delimit_point_, 0, P.rows()-delimit_point_, delimit_point_);
-	P.block(delimit_point, delimit_point, P.rows()-delimit_point, P.cols()-delimit_point) = tmp_P.block(delimit_point_, delimit_point_, P.rows()-delimit_point_, P.cols()-delimit_point_);
+	P.block(0, 0, delimit_point, delimit_point) = tmp_P.block(0, 0, delimit_point, delimit_point);	//upper-left
+	P.block(0, delimit_point, delimit_point, P.cols()-delimit_point) = tmp_P.block(0, delimit_point_, delimit_point, tmp_P.cols()-delimit_point_);	//upper-right
+	P.block(delimit_point, 0, P.rows()-delimit_point, delimit_point) = tmp_P.block(delimit_point_, 0, tmp_P.rows()-delimit_point_, delimit_point);	//lower-left
+	P.block(delimit_point, delimit_point, P.rows()-delimit_point, P.cols()-delimit_point) = tmp_P.block(delimit_point_, delimit_point_, tmp_P.rows()-delimit_point_, tmp_P.cols()-delimit_point_);	//lower-right
 }
 
 Eigen::Vector3d WallEKFSLAM::PlaneLocalToGlobal(const Eigen::Vector3d& Nl)
@@ -1063,9 +1065,7 @@ void WallEKFSLAM::Publication(void)
 	wall_origins.header.frame_id = "/odom";
 	wall_origins.header.stamp = time_imu_now;
 	/* for(size_t i=0;i<list_lm_info.size();i++)	if(list_lm_info[i].available)	wall_origins.poses.push_back(list_lm_info[i].origin); */
-	for(size_t i=0;i<list_lm_info.size();i++){
-		wall_origins.poses.push_back(list_lm_info[i].origin);
-	}
+	for(size_t i=0;i<list_lm_info.size();i++)	wall_origins.poses.push_back(list_lm_info[i].origin);
 	pub_posearray.publish(wall_origins);
 	pub_markerarray.publish(planes);
 
