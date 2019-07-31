@@ -520,7 +520,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 		/*make list of LM watched at the same time*/
 		else{
 			for(int j=0;j<list_lm_info.size();j++){
-				if(list_lm_info[j].was_observed_in_this_scan)	list_lm_info[i].list_lm_observed_simul[j] = true;
+				if(list_lm_info[j].was_observed_in_this_scan)	list_lm_info[i].list_lm_observed_simul[j] = true;	//<-eraseと一緒にこれも更新しないとおかしい
 			}
 		}
 		PushBackMarkerPlanes(list_lm_info[i]);
