@@ -523,13 +523,15 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 				if(list_lm_info[j].was_observed_in_this_scan)	list_lm_info[i].list_lm_observed_simul[j] = true;
 			}
 		}
-		PushBackMarkerPlanes(list_lm_info[i]);
+		// PushBackMarkerPlanes(list_lm_info[i]);
 		/*reset*/
 		list_lm_info[i].was_observed_in_this_scan = false;
 	}
 	/*update*/
 	if(Zstacked.size()>0 && inipose_is_available)	ObservationUpdate(Zstacked, Hstacked, jHstacked, Diag_sigma);
+	/*size recover*/
 	remover.Recover(X, P, list_lm_info);
+	for(size_t i=0;i<list_lm_info.size();++i)	PushBackMarkerPlanes(list_lm_info[i]);
 	/*Registration of new walls*/
 	X.conservativeResize(X.size() + Xnew.size());
 	X.segment(X.size() - Xnew.size(), Xnew.size()) = Xnew;
