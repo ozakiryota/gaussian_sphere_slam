@@ -497,6 +497,10 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 			}
 		}
 	}
+	/*update*/
+	if(Zstacked.size()>0 && inipose_is_available)	ObservationUpdate(Zstacked, Hstacked, jHstacked, Diag_sigma);
+	/*size recover*/
+	remover.Recover(X, P, list_lm_info);
 	/*arrange LM info*/
 	const double tolerance = 2.0;
 	for(int i=0;i<list_lm_info.size();i++){
@@ -527,11 +531,6 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 		/*reset*/
 		list_lm_info[i].was_observed_in_this_scan = false;
 	}
-	/*update*/
-	if(Zstacked.size()>0 && inipose_is_available)	ObservationUpdate(Zstacked, Hstacked, jHstacked, Diag_sigma);
-	/*size recover*/
-	remover.Recover(X, P, list_lm_info);
-	/* for(size_t i=0;i<list_lm_info.size();++i)	PushBackMarkerPlanes(list_lm_info[i]); */
 	/*Registration of new walls*/
 	X.conservativeResize(X.size() + Xnew.size());
 	X.segment(X.size() - Xnew.size(), Xnew.size()) = Xnew;
@@ -960,6 +959,9 @@ void WallEKFSLAM::EraseLM(int index)
 	P.block(delimit_point, 0, P.rows()-delimit_point, delimit_point) = tmp_P.block(delimit_point_, 0, tmp_P.rows()-delimit_point_, delimit_point);
 	/*P-lower-right*/
 	P.block(delimit_point, delimit_point, P.rows()-delimit_point, P.cols()-delimit_point) = tmp_P.block(delimit_point_, delimit_point_, tmp_P.rows()-delimit_point_, tmp_P.cols()-delimit_point_);
+
+	/*list LM observed at the same time*/
+	for(size_t i=0;i<list_lm_info.size();++i)	list_lm_info[i].list_lm_observed_simul.erase(list_lm_info[i].list_lm_observed_simul.begin() + index);
 }
 
 Eigen::Vector3d WallEKFSLAM::PlaneLocalToGlobal(const Eigen::Vector3d& Nl)
