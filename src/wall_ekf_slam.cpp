@@ -440,12 +440,12 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 	planes.markers.clear();	//visualization
 
 	JudgeWallsCanBeObserbed();
-	RemoveUnavailableLM remover(X, P, size_robot_state, size_wall_state, list_lm_info);
-	for(size_t i=0;i<list_lm_info.size();i++){
-		if(list_lm_info[i].available)	remover.InputAvailableLMIndex(i);
-		else	remover.InputUnavailableLMIndex(i);
-	}
-	remover.Remove(X, P, list_lm_info);
+	/* RemoveUnavailableLM remover(X, P, size_robot_state, size_wall_state, list_lm_info); */
+	/* for(size_t i=0;i<list_lm_info.size();i++){ */
+	/* 	if(list_lm_info[i].available)	remover.InputAvailableLMIndex(i); */
+	/* 	else	remover.InputUnavailableLMIndex(i); */
+	/* } */
+	/* remover.Remove(X, P, list_lm_info); */
 
 	int num_wall = (X.size() - size_robot_state)/size_wall_state;
 	/*matching*/
@@ -500,7 +500,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 	/*update*/
 	if(Zstacked.size()>0 && inipose_is_available)	ObservationUpdate(Zstacked, Hstacked, jHstacked, Diag_sigma);
 	/*size recover*/
-	remover.Recover(X, P, list_lm_info);
+	// remover.Recover(X, P, list_lm_info);
 	/*arrange LM info*/
 	const double tolerance = 2.0;
 	for(int i=0;i<list_lm_info.size();i++){
