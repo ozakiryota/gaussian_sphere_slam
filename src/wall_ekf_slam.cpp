@@ -88,7 +88,7 @@ class WallEKFSLAM{
 		bool bias_is_available = false;
 		bool first_callback_imu = true;
 		bool first_callback_odom = true;
-		const bool mode_remove_unavailable_lm = true;
+		const bool mode_remove_unavailable_lm = false;
 		/*counter*/
 		int counter_imu = 0;
 		/*time*/
