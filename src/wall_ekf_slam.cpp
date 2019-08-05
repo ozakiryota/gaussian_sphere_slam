@@ -150,7 +150,8 @@ WallEKFSLAM::WallEKFSLAM()
 	pub_markerarray = nh.advertise<visualization_msgs::MarkerArray>("planes", 1);
 	pub_variance = nh.advertise<std_msgs::Float64MultiArray>("variance", 1);
 	X = Eigen::VectorXd::Zero(size_robot_state);
-	P = Eigen::MatrixXd::Identity(size_robot_state, size_robot_state);
+	const double initial_sigma = 0.1;
+	P = initial_sigma*Eigen::MatrixXd::Identity(size_robot_state, size_robot_state);
 	SetUpVisualizationMarkerLineList(matching_lines);
 }
 
