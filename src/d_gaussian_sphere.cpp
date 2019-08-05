@@ -36,6 +36,8 @@ class DGaussianSphere{
 		bool mode_remove_ground;
 		bool mode_open_viewer;
 		int decimated_size;
+		double cluster_distance;
+		int min_num_cluster_belongings;
 	public:
 		DGaussianSphere();
 		void CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg);
@@ -67,11 +69,15 @@ DGaussianSphere::DGaussianSphere()
 	nhPrivate.param("mode_remove_ground", mode_remove_ground, false);
 	nhPrivate.param("mode_open_viewer", mode_open_viewer, true);
 	nhPrivate.param("decimated_size", decimated_size, 800);
+	nhPrivate.param("cluster_distance", cluster_distance, 0.1);
+	nhPrivate.param("min_num_cluster_belongings", min_num_cluster_belongings, 30);
 	std::cout << "skip = " << skip << std::endl;
 	std::cout << "search_radius_ratio = " << search_radius_ratio << std::endl;
 	std::cout << "mode_remove_ground = " << (bool)mode_remove_ground << std::endl;
 	std::cout << "mode_open_viewer " << (bool)mode_open_viewer << std::endl;
 	std::cout << "decimated_size = " << decimated_size << std::endl;
+	std::cout << "cluster_distance = " << cluster_distance << std::endl;
+	std::cout << "min_num_cluster_belongings = " << min_num_cluster_belongings << std::endl;
 
 	if(!mode_open_viewer)	viewer.close();
 }
@@ -238,8 +244,8 @@ void DGaussianSphere::ClusterDGauss(void)
 {
 	double time_start = ros::Time::now().toSec();
 
-	const double cluster_distance = 0.1;
-	const int min_num_cluster_belongings = 30;	//indoor
+	/* const double cluster_distance = 0.1; */
+	/* const int min_num_cluster_belongings = 30;	//indoor */
 	/* const int min_num_cluster_belongings = 40;	//outside */
 	pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
 	tree->setInputCloud(d_gaussian_sphere);
