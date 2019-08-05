@@ -88,6 +88,7 @@ class WallEKFSLAM{
 		bool bias_is_available = false;
 		bool first_callback_imu = true;
 		bool first_callback_odom = true;
+		const bool mode_remove_unavailable_lm = true;
 		/*counter*/
 		int counter_imu = 0;
 		/*time*/
@@ -223,11 +224,13 @@ void WallEKFSLAM::CallbackIMU(const sensor_msgs::ImuConstPtr& msg)
 void WallEKFSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 {
 	RemoveUnavailableLM remover(X, P, size_robot_state, size_wall_state, list_lm_info);
-	for(size_t i=0;i<list_lm_info.size();i++){
-		if(list_lm_info[i].available)	remover.InputAvailableLMIndex(i);
-		else	remover.InputUnavailableLMIndex(i);
+	if(mode_remove_unavailable_lm){
+		for(size_t i=0;i<list_lm_info.size();i++){
+			if(list_lm_info[i].available)	remover.InputAvailableLMIndex(i);
+			else	remover.InputUnavailableLMIndex(i);
+		}
+		remover.Remove(X, P, list_lm_info);
 	}
-	remover.Remove(X, P, list_lm_info);
 
 	/* std::cout << "PredictionIMU" << std::endl; */
 	double x = X(0);
@@ -292,7 +295,7 @@ void WallEKFSLAM::PredictionIMU(sensor_msgs::Imu imu, double dt)
 	X = F;
 	P = jF*P*jF.transpose() + Q;
 	
-	remover.Recover(X, P, list_lm_info);
+	if(mode_remove_unavailable_lm)	remover.Recover(X, P, list_lm_info);
 
 	/* std::cout << "X =" << std::endl << X << std::endl; */
 	/* std::cout << "P =" << std::endl << P << std::endl; */
@@ -364,11 +367,13 @@ void WallEKFSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 {
 	/* std::cout << "Prediction Odom" << std::endl; */
 	RemoveUnavailableLM remover(X, P, size_robot_state, size_wall_state, list_lm_info);
-	for(size_t i=0;i<list_lm_info.size();i++){
-		if(list_lm_info[i].available)	remover.InputAvailableLMIndex(i);
-		else	remover.InputUnavailableLMIndex(i);
+	if(mode_remove_unavailable_lm){
+		for(size_t i=0;i<list_lm_info.size();i++){
+			if(list_lm_info[i].available)	remover.InputAvailableLMIndex(i);
+			else	remover.InputUnavailableLMIndex(i);
+		}
+		remover.Remove(X, P, list_lm_info);
 	}
-	remover.Remove(X, P, list_lm_info);
 
 	double x = X(0);
 	double y = X(1);
@@ -422,7 +427,7 @@ void WallEKFSLAM::PredictionOdom(nav_msgs::Odometry odom, double dt)
 	X = F;
 	P = jF*P*jF.transpose() + Q;
 
-	remover.Recover(X, P, list_lm_info);
+	if(mode_remove_unavailable_lm)	remover.Recover(X, P, list_lm_info);
 }
 
 void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr &msg)
@@ -441,11 +446,13 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 
 	JudgeWallsCanBeObserbed();
 	RemoveUnavailableLM remover(X, P, size_robot_state, size_wall_state, list_lm_info);
-	for(size_t i=0;i<list_lm_info.size();i++){
-		if(list_lm_info[i].available)	remover.InputAvailableLMIndex(i);
-		else	remover.InputUnavailableLMIndex(i);
+	if(mode_remove_unavailable_lm){
+		for(size_t i=0;i<list_lm_info.size();i++){
+			if(list_lm_info[i].available)	remover.InputAvailableLMIndex(i);
+			else	remover.InputUnavailableLMIndex(i);
+		}
+		remover.Remove(X, P, list_lm_info);
 	}
-	remover.Remove(X, P, list_lm_info);
 
 	int num_wall = (X.size() - size_robot_state)/size_wall_state;
 	/*matching*/
@@ -500,7 +507,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 	/*update*/
 	if(Zstacked.size()>0 && inipose_is_available)	ObservationUpdate(Zstacked, Hstacked, jHstacked, Diag_sigma);
 	/*size recover*/
-	remover.Recover(X, P, list_lm_info);
+	if(mode_remove_unavailable_lm)	remover.Recover(X, P, list_lm_info);
 	/*arrange LM info*/
 	const double tolerance = 2.0;
 	for(int i=0;i<list_lm_info.size();i++){
@@ -1225,9 +1232,9 @@ void WallEKFSLAM::RemoveUnavailableLM::Remove(Eigen::VectorXd& X, Eigen::MatrixX
 void WallEKFSLAM::RemoveUnavailableLM::Recover(Eigen::VectorXd& X, Eigen::MatrixXd& P, std::vector<LMInfo>& list_lm_info)
 {
 	if(unavailable_lm_indices.size()!=0){
+		/* for(size_t i=0;i<available_lm_indices.size();i++)	std::cout << "available_lm_indices[i] = " << available_lm_indices[i]  << std::endl; */
 		/* std::cout << "X = " << std::endl << X << std::endl; */
 		/* std::cout << "P = " << std::endl << P << std::endl; */
-		/* for(size_t i=0;i<available_lm_indices.size();i++)	std::cout << "available_lm_indices[i] = " << available_lm_indices[i]  << std::endl; */
 
 		Eigen::VectorXd tmp_X = X_;
 		Eigen::MatrixXd tmp_P = P_;
@@ -1271,7 +1278,7 @@ void WallEKFSLAM::RemoveUnavailableLM::Recover(Eigen::VectorXd& X, Eigen::Matrix
 		}
 		for(size_t i=0;i<list_lm_info_.size();++i)	list_lm_info[i].list_lm_observed_simul = list_lm_info_[i].list_lm_observed_simul;
 
-		std::cout << "recovered" << std::endl;
+		/* std::cout << "recovered" << std::endl; */
 		/* std::cout << "X = " << std::endl << X << std::endl; */
 		/* std::cout << "P = " << std::endl << P << std::endl; */
 	}
