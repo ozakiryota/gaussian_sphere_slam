@@ -545,6 +545,12 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 	}
 	for(size_t i=0;i<list_erased_lm_info.size();i++)	PushBackMarkerPlanes(list_erased_lm_info[i]);
 
+	/*test*/
+	/* const int highlight_index = 3; */
+	/* planes.markers[highlight_index].color.r = 0.5; */
+	/* planes.markers[highlight_index].color.g = 0.5; */
+	/* planes.markers[highlight_index].color.b = 0.5; */
+
 	Publication();
 }
 
@@ -810,6 +816,9 @@ void WallEKFSLAM::ObservationUpdate(const Eigen::VectorXd& Z, const Eigen::Vecto
 	for(int i=3;i<6;i++)	X(i) = PiToPi(X(i));
 	Eigen::MatrixXd I = Eigen::MatrixXd::Identity(X.size(), X.size());
 	P = (I - K*jH)*P;
+
+	/* std::cout << "K = " << std::endl << K << std::endl; */
+	/* std::cout << "K*Y = " << std::endl << K*Y << std::endl; */
 }
 
 Eigen::Vector3d WallEKFSLAM::PlaneGlobalToLocal(const Eigen::Vector3d& Ng)
@@ -1218,7 +1227,7 @@ void WallEKFSLAM::RemoveUnavailableLM::Recover(Eigen::VectorXd& X, Eigen::Matrix
 	if(unavailable_lm_indices.size()!=0){
 		/* std::cout << "X = " << std::endl << X << std::endl; */
 		/* std::cout << "P = " << std::endl << P << std::endl; */
-		for(size_t i=0;i<available_lm_indices.size();i++)	std::cout << "available_lm_indices[i] = " << available_lm_indices[i]  << std::endl;
+		/* for(size_t i=0;i<available_lm_indices.size();i++)	std::cout << "available_lm_indices[i] = " << available_lm_indices[i]  << std::endl; */
 
 		Eigen::VectorXd tmp_X = X_;
 		Eigen::MatrixXd tmp_P = P_;
