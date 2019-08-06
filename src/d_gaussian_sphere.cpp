@@ -18,6 +18,7 @@ class DGaussianSphere{
 		/*subscribe*/
 		ros::Subscriber sub_pc;
 		/*publish*/
+		ros::Publisher pub_gausspc;
 		ros::Publisher pub_pc;
 		ros::Publisher pub_nc;
 		/*pcl*/
@@ -58,6 +59,7 @@ DGaussianSphere::DGaussianSphere()
 	:nhPrivate("~")
 {
 	sub_pc = nh.subscribe("/velodyne_points", 1, &DGaussianSphere::CallbackPC, this);
+	pub_gausspc = nh.advertise<sensor_msgs::PointCloud2>("/d_gaussian_sphere", 1);
 	pub_pc = nh.advertise<sensor_msgs::PointCloud2>("/d_gaussian_sphere_obs", 1);
 	pub_nc = nh.advertise<sensor_msgs::PointCloud2>("/normals", 1);
 	viewer.setBackgroundColor(1, 1, 1);
@@ -311,6 +313,12 @@ void DGaussianSphere::Visualization(void)
 
 void DGaussianSphere::Publication(void)
 {
+	/*gausspc*/
+	d_gaussian_sphere->header.stamp = cloud->header.stamp;
+	d_gaussian_sphere->header.frame_id = cloud->header.frame_id;
+	sensor_msgs::PointCloud2 gausspc_pub;
+	pcl::toROSMsg(*d_gaussian_sphere, gausspc_pub);
+	pub_gausspc.publish(gausspc_pub);
 	/*pc*/
 	d_gaussian_sphere_clustered->header.stamp = cloud->header.stamp;
 	d_gaussian_sphere_clustered->header.frame_id = cloud->header.frame_id;
