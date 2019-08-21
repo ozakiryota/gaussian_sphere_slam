@@ -80,7 +80,8 @@ DGaussianSphere::DGaussianSphere()
 	std::cout << "skip = " << skip << std::endl;
 	std::cout << "search_radius_ratio = " << search_radius_ratio << std::endl;
 	std::cout << "mode_remove_ground = " << (bool)mode_remove_ground << std::endl;
-	std::cout << "mode_open_viewer " << (bool)mode_open_viewer << std::endl;
+	std::cout << "mode_open_viewer = " << (bool)mode_open_viewer << std::endl;
+	std::cout << "mode_decimate_points = " << (bool)mode_decimate_points << std::endl;
 	std::cout << "decimated_size = " << decimated_size << std::endl;
 	std::cout << "cluster_distance = " << cluster_distance << std::endl;
 	std::cout << "min_num_cluster_belongings = " << min_num_cluster_belongings << std::endl;
@@ -98,7 +99,7 @@ void DGaussianSphere::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 
 	kdtree.setInputCloud(cloud);
 	Computation();
-	if(d_gaussian_sphere->points.size()>decimated_size)	DecimatePC();
+	if(mode_decimate_points && d_gaussian_sphere->points.size()>decimated_size)	DecimatePC();
 	ClusterDGauss();
 
 	Publication();
@@ -120,6 +121,7 @@ void DGaussianSphere::Computation(void)
 
 	double time_start = ros::Time::now().toSec();
 
+	const double min_search_radius = 0.2;
 	normals->points.resize((cloud->points.size()-1)/skip + 1);
 	std::vector<bool> extract_indices((cloud->points.size()-1)/skip + 1, false);
 	size_t counter = 0;
@@ -132,6 +134,7 @@ void DGaussianSphere::Computation(void)
 		/*search neighbor points*/
 		double laser_distance = Getdepth(cloud->points[i]);
 		double search_radius = search_radius_ratio*laser_distance;
+		if(search_radius<min_search_radius)	search_radius = min_search_radius;
 		std::vector<int> indices = KdtreeSearch(cloud->points[i], search_radius);
 		/*compute normal*/
 		float curvature;
@@ -324,7 +327,7 @@ void DGaussianSphere::Visualization(void)
 	/*d-gaussian sphere n*/
 	viewer.addPointCloudNormals<pcl::PointNormal>(d_gaussian_sphere_clustered_n, 1, 1.0, "d_gaussian_sphere_clustered_n");
 	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 1.0, 0.0, 0.0, "d_gaussian_sphere_clustered_n");
-	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 1, "d_gaussian_sphere_clustered_n");
+	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 2, "d_gaussian_sphere_clustered_n");
 	
 	viewer.spinOnce();
 }
