@@ -18,7 +18,6 @@ class DGaussianSphere{
 		/*subscribe*/
 		ros::Subscriber sub_pc;
 		/*publish*/
-		ros::Publisher pub_gausspc;
 		ros::Publisher pub_pc;
 		ros::Publisher pub_nc;
 		/*pcl*/
@@ -35,11 +34,6 @@ class DGaussianSphere{
 		int skip;
 		double search_radius_ratio;
 		bool mode_remove_ground;
-		bool mode_open_viewer;
-		bool mode_decimate_points;
-		int decimated_size;
-		double cluster_distance;
-		int min_num_cluster_belongings;
 	public:
 		DGaussianSphere();
 		void CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg);
@@ -50,7 +44,6 @@ class DGaussianSphere{
 		bool JudgeFlatness(const Eigen::Vector4f& plane_parameters, std::vector<int> indices);
 		double AngleBetweenVectors(const Eigen::Vector3f& V1, const Eigen::Vector3f& V2);
 		double ComputeFittingError(const Eigen::Vector4f& N, std::vector<int> indices);
-		void DecimatePC(void);
 		void ClusterDGauss(void);
 		void Visualization(void);
 		void Publication(void);
@@ -60,31 +53,18 @@ DGaussianSphere::DGaussianSphere()
 	:nhPrivate("~")
 {
 	sub_pc = nh.subscribe("/velodyne_points", 1, &DGaussianSphere::CallbackPC, this);
-	pub_gausspc = nh.advertise<sensor_msgs::PointCloud2>("/d_gaussian_sphere", 1);
 	pub_pc = nh.advertise<sensor_msgs::PointCloud2>("/d_gaussian_sphere_obs", 1);
 	pub_nc = nh.advertise<sensor_msgs::PointCloud2>("/normals", 1);
 	viewer.setBackgroundColor(1, 1, 1);
 	viewer.addCoordinateSystem(0.8, "axis");
 	viewer.setCameraPosition(-30.0, 0.0, 10.0, 0.0, 0.0, 1.0);
-	// viewer.setCameraPosition(0.0, 0.0, 15.0, 0.0, 0.0, 0.0);
 
 	nhPrivate.param("skip", skip, 3);
 	nhPrivate.param("search_radius_ratio", search_radius_ratio, 0.09);
 	nhPrivate.param("mode_remove_ground", mode_remove_ground, false);
-	nhPrivate.param("mode_open_viewer", mode_open_viewer, true);
-	nhPrivate.param("mode_decimate_points", mode_decimate_points, true);
-	nhPrivate.param("decimated_size", decimated_size, 800);
-	nhPrivate.param("cluster_distance", cluster_distance, 0.1);
-	nhPrivate.param("min_num_cluster_belongings", min_num_cluster_belongings, 30);
 	std::cout << "skip = " << skip << std::endl;
 	std::cout << "search_radius_ratio = " << search_radius_ratio << std::endl;
 	std::cout << "mode_remove_ground = " << (bool)mode_remove_ground << std::endl;
-	std::cout << "mode_open_viewer " << (bool)mode_open_viewer << std::endl;
-	std::cout << "decimated_size = " << decimated_size << std::endl;
-	std::cout << "cluster_distance = " << cluster_distance << std::endl;
-	std::cout << "min_num_cluster_belongings = " << min_num_cluster_belongings << std::endl;
-
-	if(!mode_open_viewer)	viewer.close();
 }
 
 void DGaussianSphere::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
@@ -97,11 +77,10 @@ void DGaussianSphere::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 
 	kdtree.setInputCloud(cloud);
 	Computation();
-	if(d_gaussian_sphere->points.size()>decimated_size)	DecimatePC();
 	ClusterDGauss();
 
 	Publication();
-	if(mode_open_viewer)	Visualization();
+	Visualization();
 }
 
 void DGaussianSphere::ClearPC(void)
@@ -120,7 +99,6 @@ void DGaussianSphere::Computation(void)
 
 	normals->points.resize((cloud->points.size()-1)/skip + 1);
 	std::vector<bool> extract_indices((cloud->points.size()-1)/skip + 1, false);
-	size_t counter = 0;
 
 	#ifdef _OPENMP
 	#pragma omp parallel for
@@ -157,9 +135,9 @@ void DGaussianSphere::Computation(void)
 			normals_extracted->points.push_back(normals->points[i]);
 			/*d-gaussian shpere*/
 			pcl::PointXYZ tmp;
-			tmp.x = -fabs(normals->points[i].data_n[3])*normals->points[i].data_n[0];
-			tmp.y = -fabs(normals->points[i].data_n[3])*normals->points[i].data_n[1];
-			tmp.z = -fabs(normals->points[i].data_n[3])*normals->points[i].data_n[2];
+			tmp.x = -normals->points[i].data_n[3]*normals->points[i].data_n[0];
+			tmp.y = -normals->points[i].data_n[3]*normals->points[i].data_n[1];
+			tmp.z = -normals->points[i].data_n[3]*normals->points[i].data_n[2];
 			d_gaussian_sphere->points.push_back(tmp);
 			/* std::cout << "remove unsused normal" << std::endl; */
 			/* normals->points.erase(normals->points.begin() + i); */
@@ -230,27 +208,12 @@ double DGaussianSphere::ComputeFittingError(const Eigen::Vector4f& N, std::vecto
 	return ave_fitting_error;
 }
 
-void DGaussianSphere::DecimatePC(void)
-{
-	std::cout << "d_gaussian_sphere->points.size() : " << d_gaussian_sphere->points.size() << " -> " << decimated_size << std::endl;
-
-	double sparse_step = d_gaussian_sphere->points.size()/(double)decimated_size;
-	pcl::PointCloud<pcl::PointXYZ>::Ptr tmp_pc (new pcl::PointCloud<pcl::PointXYZ>);
-	tmp_pc->points.resize(decimated_size);
-
-	for(int i=0;i<decimated_size;++i){
-		int original_index = i*sparse_step;
-		tmp_pc->points[i] = d_gaussian_sphere->points[original_index];
-	}
-	d_gaussian_sphere = tmp_pc;
-}
-
 void DGaussianSphere::ClusterDGauss(void)
 {
 	double time_start = ros::Time::now().toSec();
 
-	/* const double cluster_distance = 0.1; */
-	/* const int min_num_cluster_belongings = 30;	//indoor */
+	const double cluster_distance = 0.1;
+	const int min_num_cluster_belongings = 30;	//indoor
 	/* const int min_num_cluster_belongings = 40;	//outside */
 	pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
 	tree->setInputCloud(d_gaussian_sphere);
@@ -316,12 +279,6 @@ void DGaussianSphere::Visualization(void)
 
 void DGaussianSphere::Publication(void)
 {
-	/*gausspc*/
-	d_gaussian_sphere->header.stamp = cloud->header.stamp;
-	d_gaussian_sphere->header.frame_id = cloud->header.frame_id;
-	sensor_msgs::PointCloud2 gausspc_pub;
-	pcl::toROSMsg(*d_gaussian_sphere, gausspc_pub);
-	pub_gausspc.publish(gausspc_pub);
 	/*pc*/
 	d_gaussian_sphere_clustered->header.stamp = cloud->header.stamp;
 	d_gaussian_sphere_clustered->header.frame_id = cloud->header.frame_id;
