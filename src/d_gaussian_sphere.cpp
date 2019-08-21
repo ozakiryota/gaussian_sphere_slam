@@ -29,6 +29,7 @@ class DGaussianSphere{
 		pcl::PointCloud<pcl::PointNormal>::Ptr normals_extracted {new pcl::PointCloud<pcl::PointNormal>};
 		pcl::PointCloud<pcl::PointXYZ>::Ptr d_gaussian_sphere {new pcl::PointCloud<pcl::PointXYZ>};
 		pcl::PointCloud<pcl::InterestPoint>::Ptr d_gaussian_sphere_clustered {new pcl::PointCloud<pcl::InterestPoint>};
+		pcl::PointCloud<pcl::PointNormal>::Ptr d_gaussian_sphere_clustered_n {new pcl::PointCloud<pcl::PointNormal>};
 		/*objects*/
 		Eigen::Vector3f Gvector{0.0, 0.0, -1.0};	//tmp
 		/*parameters*/
@@ -65,8 +66,8 @@ DGaussianSphere::DGaussianSphere()
 	pub_nc = nh.advertise<sensor_msgs::PointCloud2>("/normals", 1);
 	viewer.setBackgroundColor(1, 1, 1);
 	viewer.addCoordinateSystem(0.8, "axis");
-	viewer.setCameraPosition(-30.0, 0.0, 10.0, 0.0, 0.0, 1.0);
-	// viewer.setCameraPosition(0.0, 0.0, 15.0, 0.0, 0.0, 0.0);
+	// viewer.setCameraPosition(-30.0, 0.0, 10.0, 0.0, 0.0, 1.0);
+	viewer.setCameraPosition(0.0, 0.0, 35.0, 0.0, 0.0, 0.0);
 
 	nhPrivate.param("skip", skip, 3);
 	nhPrivate.param("search_radius_ratio", search_radius_ratio, 0.09);
@@ -110,6 +111,7 @@ void DGaussianSphere::ClearPC(void)
 	normals_extracted->points.clear();
 	d_gaussian_sphere->points.clear();
 	d_gaussian_sphere_clustered->points.clear();
+	d_gaussian_sphere_clustered_n->points.clear();
 }
 
 void DGaussianSphere::Computation(void)
@@ -285,6 +287,15 @@ void DGaussianSphere::ClusterDGauss(void)
 		tmp_centroid.z = xyz_centroid[2];
 		tmp_centroid.strength = tmp_clustered_indices->indices.size();
 		d_gaussian_sphere_clustered->points.push_back(tmp_centroid);
+		/*for Visualization*/
+		pcl::PointNormal tmp_centroid_n;
+		tmp_centroid_n.x = 0.0;
+		tmp_centroid_n.y = 0.0;
+		tmp_centroid_n.z = 0.0;
+		tmp_centroid_n.normal_x = xyz_centroid[0];
+		tmp_centroid_n.normal_y = xyz_centroid[1];
+		tmp_centroid_n.normal_z = xyz_centroid[2];
+		d_gaussian_sphere_clustered_n->points.push_back(tmp_centroid_n);
 	}
 
 	std::cout << "clustering time [s] = " << ros::Time::now().toSec() - time_start << std::endl;
@@ -310,6 +321,10 @@ void DGaussianSphere::Visualization(void)
 	viewer.addPointCloud(d_gaussian_sphere, "d_gaussian_sphere");
 	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 1.0, 0.0, 0.8, "d_gaussian_sphere");
 	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3, "d_gaussian_sphere");
+	/*d-gaussian sphere n*/
+	viewer.addPointCloudNormals<pcl::PointNormal>(d_gaussian_sphere_clustered_n, 1, 1.0, "d_gaussian_sphere_clustered_n");
+	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_COLOR, 1.0, 0.0, 0.0, "d_gaussian_sphere_clustered_n");
+	viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 1, "d_gaussian_sphere_clustered_n");
 	
 	viewer.spinOnce();
 }
