@@ -237,6 +237,7 @@ double DGaussianSphere::ComputeFittingError(const Eigen::Vector4f& N, std::vecto
 
 void DGaussianSphere::DecimatePC(void)
 {
+	std::cout << "==========" << std::endl;
 	std::cout << "d_gaussian_sphere->points.size() : " << d_gaussian_sphere->points.size() << " -> " << decimated_size << std::endl;
 
 	double sparse_step = d_gaussian_sphere->points.size()/(double)decimated_size;
@@ -302,7 +303,7 @@ void DGaussianSphere::ClusterDGauss(void)
 	}
 
 	std::cout << "clustering time [s] = " << ros::Time::now().toSec() - time_start << std::endl;
-	std::cout << "d_gaussian_sphere_clustered->points.size() : " << d_gaussian_sphere_clustered->points.size() << std::endl;
+	std::cout << "d_gaussian_sphere_clustered->points.size() = " << d_gaussian_sphere_clustered->points.size() << std::endl;
 }
 
 void DGaussianSphere::Visualization(void)
