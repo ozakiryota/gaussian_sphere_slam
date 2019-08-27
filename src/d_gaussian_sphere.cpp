@@ -302,6 +302,7 @@ void DGaussianSphere::ClusterDGauss(void)
 	}
 
 	std::cout << "clustering time [s] = " << ros::Time::now().toSec() - time_start << std::endl;
+	std::cout << "d_gaussian_sphere_clustered->points.size() : " << d_gaussian_sphere_clustered->points.size() << " -> " << decimated_size << std::endl;
 }
 
 void DGaussianSphere::Visualization(void)
