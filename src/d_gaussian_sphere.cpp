@@ -94,6 +94,7 @@ void DGaussianSphere::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 	/* std::cout << "CALLBACK PC" << std::endl; */
 
 	pcl::fromROSMsg(*msg, *cloud);
+	std::cout << "==========" << std::endl;
 	std::cout << "cloud->points.size() = " << cloud->points.size() << std::endl;
 	ClearPC();
 
@@ -237,7 +238,6 @@ double DGaussianSphere::ComputeFittingError(const Eigen::Vector4f& N, std::vecto
 
 void DGaussianSphere::DecimatePC(void)
 {
-	std::cout << "==========" << std::endl;
 	std::cout << "d_gaussian_sphere->points.size() : " << d_gaussian_sphere->points.size() << " -> " << decimated_size << std::endl;
 
 	double sparse_step = d_gaussian_sphere->points.size()/(double)decimated_size;
