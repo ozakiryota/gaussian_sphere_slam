@@ -37,6 +37,7 @@ class DGaussianSphere{
 		double search_radius_ratio;
 		bool mode_remove_ground;
 		bool mode_open_viewer;
+		bool mode_clustering;
 		bool mode_decimate_points;
 		int decimated_size;
 		double cluster_distance;
@@ -73,6 +74,7 @@ DGaussianSphere::DGaussianSphere()
 	nhPrivate.param("search_radius_ratio", search_radius_ratio, 0.09);
 	nhPrivate.param("mode_remove_ground", mode_remove_ground, false);
 	nhPrivate.param("mode_open_viewer", mode_open_viewer, true);
+	nhPrivate.param("mode_clustering", mode_clustering, true);
 	nhPrivate.param("mode_decimate_points", mode_decimate_points, true);
 	nhPrivate.param("decimated_size", decimated_size, 800);
 	nhPrivate.param("cluster_distance", cluster_distance, 0.1);
@@ -81,6 +83,7 @@ DGaussianSphere::DGaussianSphere()
 	std::cout << "search_radius_ratio = " << search_radius_ratio << std::endl;
 	std::cout << "mode_remove_ground = " << (bool)mode_remove_ground << std::endl;
 	std::cout << "mode_open_viewer = " << (bool)mode_open_viewer << std::endl;
+	std::cout << "mode_clustering = " << (bool)mode_clustering << std::endl;
 	std::cout << "mode_decimate_points = " << (bool)mode_decimate_points << std::endl;
 	std::cout << "decimated_size = " << decimated_size << std::endl;
 	std::cout << "cluster_distance = " << cluster_distance << std::endl;
@@ -101,7 +104,7 @@ void DGaussianSphere::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 	kdtree.setInputCloud(cloud);
 	Computation();
 	if(mode_decimate_points && d_gaussian_sphere->points.size()>decimated_size)	DecimatePC();
-	ClusterDGauss();
+	if(mode_clustering)	ClusterDGauss();
 
 	Publication();
 	if(mode_open_viewer)	Visualization();
