@@ -49,7 +49,7 @@ class DGaussianSphere{
 		void Computation(void);
 		double Getdepth(pcl::PointXYZ point);
 		std::vector<int> KdtreeSearch(pcl::PointXYZ searchpoint, double search_radius);
-		bool JudgeFlatness(const Eigen::Vector4f& plane_parameters, std::vector<int> indices);
+		bool JudgeForSelecting(const Eigen::Vector4f& plane_parameters, std::vector<int> indices);
 		double AngleBetweenVectors(const Eigen::Vector3f& V1, const Eigen::Vector3f& V2);
 		double ComputeFittingError(const Eigen::Vector4f& N, std::vector<int> indices);
 		void DecimatePC(void);
@@ -145,7 +145,7 @@ void DGaussianSphere::Computation(void)
 		Eigen::Vector4f plane_parameters;
 		pcl::computePointNormal(*cloud, indices, plane_parameters, curvature);
 		/*judge*/
-		extract_indices[normal_index] = JudgeFlatness(plane_parameters, indices);
+		extract_indices[normal_index] = JudgeForSelecting(plane_parameters, indices);
 		/*input*/
 		normals->points[normal_index].x = cloud->points[i].x;
 		normals->points[normal_index].y = cloud->points[i].y;
@@ -197,7 +197,7 @@ std::vector<int> DGaussianSphere::KdtreeSearch(pcl::PointXYZ searchpoint, double
 	return pointIdxRadiusSearch; 
 }
 
-bool DGaussianSphere::JudgeFlatness(const Eigen::Vector4f& plane_parameters, std::vector<int> indices)
+bool DGaussianSphere::JudgeForSelecting(const Eigen::Vector4f& plane_parameters, std::vector<int> indices)
 {
 	/*threshold*/
 	const size_t threshold_num_neighborpoints = 10;
