@@ -42,6 +42,9 @@ class DGaussianSphere{
 		int decimated_size;
 		double cluster_distance;
 		int min_num_cluster_belongings;
+		/*time counter*/
+	 	double avg_computation_time = 0.0;
+		int counter = 0;
 	public:
 		DGaussianSphere();
 		void CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg);
@@ -96,6 +99,8 @@ void DGaussianSphere::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 {
 	/* std::cout << "CALLBACK PC" << std::endl; */
 
+	double time_start = ros::Time::now().toSec();
+
 	pcl::fromROSMsg(*msg, *cloud);
 	std::cout << "==========" << std::endl;
 	std::cout << "cloud->points.size() = " << cloud->points.size() << std::endl;
@@ -105,6 +110,11 @@ void DGaussianSphere::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 	Computation();
 	if(mode_decimate_points && d_gaussian_sphere->points.size()>decimated_size)	DecimatePC();
 	if(mode_clustering)	ClusterDGauss();
+
+	double tmp_time = ros::Time::now().toSec() - time_start;
+	counter++;
+	avg_computation_time = avg_computation_time*(counter - 1) + tmp_time/counter;
+	std::cout << "feature extraction: avg_computation_time [s] = " << avg_computation_time << std::endl;
 
 	Publication();
 	if(mode_open_viewer)	Visualization();
@@ -176,7 +186,7 @@ void DGaussianSphere::Computation(void)
 		}
 	}
 
-	std::cout << "computation time [s] = " << ros::Time::now().toSec() - time_start << std::endl;
+	std::cout << "normal estimation time [s] = " << ros::Time::now().toSec() - time_start << std::endl;
 }
 
 double DGaussianSphere::Getdepth(pcl::PointXYZ point)

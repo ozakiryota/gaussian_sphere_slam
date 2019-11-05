@@ -99,6 +99,9 @@ class WallEKFSLAM{
 		/*visualization*/
 		visualization_msgs::Marker matching_lines;
 		visualization_msgs::MarkerArray planes;
+		/*time counter*/
+	 	double avg_computation_time = 0.0;
+		int counter = 0;
 	public:
 		WallEKFSLAM();
 		void SetUpVisualizationMarkerLineList(visualization_msgs::Marker& marker);	//visualization
@@ -435,6 +438,8 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 {
 	std::cout << "Callback D-Gaussian Sphere" << std::endl;
 	std::cout << "num_wall = " << (X.size() - size_robot_state)/size_wall_state << std::endl;
+
+	double time_start = ros::Time::now().toSec();
 	
 	pcl::fromROSMsg(*msg, *d_gaussian_sphere);
 	std::cout << "d_gaussian_sphere->points.size() = " << d_gaussian_sphere->points.size() << std::endl;
@@ -553,6 +558,11 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 		else i++;
 	}
 	for(size_t i=0;i<list_erased_lm_info.size();i++)	PushBackMarkerPlanes(list_erased_lm_info[i]);
+
+	double tmp_time = ros::Time::now().toSec() - time_start;
+	counter++;
+	avg_computation_time = avg_computation_time*(counter - 1) + tmp_time/counter;
+	std::cout << "Updating: avg_computation_time [s] = " << avg_computation_time << std::endl;
 
 	/*test*/
 	/* const int highlight_index = 3; */
