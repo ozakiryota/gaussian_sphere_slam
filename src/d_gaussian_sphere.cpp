@@ -114,7 +114,7 @@ void DGaussianSphere::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 	double tmp_time = ros::Time::now().toSec() - time_start;
 	counter++;
 	avg_computation_time = avg_computation_time*(counter - 1) + tmp_time/counter;
-	std::cout << "feature extraction: avg_computation_time [s] = " << avg_computation_time << std::endl;
+	std::cout << "Feature extraction: avg_computation_time [s] = " << avg_computation_time << std::endl;
 
 	Publication();
 	if(mode_open_viewer)	Visualization();
@@ -138,7 +138,6 @@ void DGaussianSphere::Computation(void)
 	const double min_search_radius = 0.2;
 	normals->points.resize((cloud->points.size()-1)/skip + 1);
 	std::vector<bool> extract_indices((cloud->points.size()-1)/skip + 1, false);
-	size_t counter = 0;
 
 	#ifdef _OPENMP
 	#pragma omp parallel for
