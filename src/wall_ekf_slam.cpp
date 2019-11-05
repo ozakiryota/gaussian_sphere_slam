@@ -928,7 +928,7 @@ void WallEKFSLAM::PushBackMarkerPlanes(LMInfo lm_info)
 		tmp.color.r = 1.0;
 		tmp.color.g = 1.0;
 		tmp.color.b = 0.0;
-		tmp.color.a = 0.5;
+		tmp.color.a = 0.3;
 	}
 	else if(lm_info.available){
 		tmp.color.r = 0.0;

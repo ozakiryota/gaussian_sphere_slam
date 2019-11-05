@@ -47,6 +47,6 @@
 	</node>
 	<node pkg="pc_store" name="downsampled_pc_srore_with_odometry_mapframe" type="downsampled_pc_srore_with_odometry_mapframe" output="screen">
 		<remap from="/odom" to="/wall_ekf_slam/odom"/>
-		<param name="leaf_size" type="double" value="0.5"/>
+		<param name="leaf_size" type="double" value="0.3"/>
 	</node>
 </launch>
