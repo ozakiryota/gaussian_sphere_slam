@@ -4,25 +4,34 @@
 
 	<!-- rosbag -->
 	<!-- <node pkg="rosbag" type="play" name="player" args="&#45;&#45;clock /home/amsl/ozaki/bagfiles/infant/mocap/0119_infant/2019&#45;01&#45;19&#45;18&#45;26&#45;15.bag &#45;s 75"/> -->
-	<node pkg="rosbag" type="play" name="player" args="--clock /home/amsl/ozaki/bagfiles/infant/indoor_dkan/2019-05-24-18-40-39.bag"/>
+	<!-- <node pkg="rosbag" type="play" name="player" args="&#45;&#45;clock /home/amsl/ozaki/bagfiles/infant/indoor_dkan/2019&#45;05&#45;24&#45;18&#45;40&#45;39.bag"/> -->
 	<!-- <node pkg="rosbag" type="play" name="player" args="&#45;&#45;clock /home/amsl/ozaki/bagfiles/infant/indoor_dkan/2019&#45;07&#45;04&#45;20&#45;05&#45;36.bag"/> -->
+	<node pkg="rosbag" type="play" name="player" args="--clock /home/amsl/ozaki/bagfiles/infant2/indoor_dkan/3rounds/2019-11-05-12-42-21.bag"/>
 
 	<!-- rviz -->
-	<node pkg="rviz" type="rviz" name="rviz_wall_ekf_slam" args="-d /home/amsl/.rviz/wall_ekf_slam.rviz"/>
+	<!-- <node pkg="rviz" type="rviz" name="rviz_wall_ekf_slam" args="&#45;d /home/amsl/.rviz/wall_ekf_slam.rviz"/> -->
+	<node pkg="rviz" type="rviz" name="rviz_d_kan_topview" args="-d $(find gaussian_sphere_slam)/rviz_config/d_kan_topview.rviz"/>
 
 	<!-- sensor driver -->
 	<include file="$(find velodyne_pointcloud)/launch/32e_points.launch"/>
-	<node pkg="pose_estimation_walls" name="odom_republish_infant" type="odom_republish_infant"/>
 
-	<!-- proposed method -->
+	<!-- semi sensor driver -->
+	<node pkg="msg_conversion" name="infant_odometry_republish" type="infant_odometry_republish" output="screen">
+		<param name="velocity_scalar_ratio" type="double" value="0.92"/>
+	</node>
 	<node pkg="gyrodometry" name="initial_alignment" type="initial_alignment" output="screen">
 		<param name="initial_orientation_is_0001" type="bool" value="true"/>
 	</node>
-	<node pkg="gaussian_sphere_slam" name="wall_ekf_slam" type="wall_ekf_slam" output="screen"/>
+
+	<!-- proposed method -->
+	<node pkg="gaussian_sphere_slam" name="wall_ekf_slam" type="wall_ekf_slam" output="screen">
+		<remap from="/tinypower/odom" to="/tinypower/odom/republished"/>
+	</node>
 
 	<!-- comparisons -->
-	<node pkg="gyrodometry" name="gyrodometry3d" type="gyrodometry3d" output="screen">
+	<node pkg="gyrodometry" name="gyrodometry3d" type="gyrodometry3d">
 		<remap from="/odom" to="/tinypower/odom/republished"/>
+		<param name="mode_use_linear_velocity" type="bool" value="true"/>
 	</node>
 	<!-- <include file="$(find loam_velodyne)/launch/hector_loam_velodyne.launch"/> -->
 	<!-- <node pkg="msg_conversion" type="odometry_zxy_to_xyz" name="odometry_zxy_to_xyz"> -->
@@ -35,5 +44,9 @@
 		<remap from="/pose" to="/wall_ekf_slam/pose"/>
 		<remap from="/odom/from_posestamped" to="/wall_ekf_slam/odom"/>
 		<param name="child_frame_id" type="string" value="/wall_ekf_slam/odom"/>
+	</node>
+	<node pkg="pc_store" name="downsampled_pc_srore_with_odometry_mapframe" type="downsampled_pc_srore_with_odometry_mapframe" output="screen">
+		<remap from="/odom" to="/wall_ekf_slam/odom"/>
+		<param name="leaf_size" type="double" value="0.5"/>
 	</node>
 </launch>

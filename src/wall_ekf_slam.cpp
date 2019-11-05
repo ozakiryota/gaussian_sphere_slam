@@ -150,7 +150,7 @@ WallEKFSLAM::WallEKFSLAM()
 	pub_markerarray = nh.advertise<visualization_msgs::MarkerArray>("planes", 1);
 	pub_variance = nh.advertise<std_msgs::Float64MultiArray>("variance", 1);
 	X = Eigen::VectorXd::Zero(size_robot_state);
-	const double initial_sigma = 0.1;
+	const double initial_sigma = 1.0e-100;
 	P = initial_sigma*Eigen::MatrixXd::Identity(size_robot_state, size_robot_state);
 	SetUpVisualizationMarkerLineList(matching_lines);
 }
@@ -494,7 +494,8 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 				VectorVStack(Zstacked, Nl);
 				VectorVStack(Hstacked, list_obs_info[i].H);
 				MatrixVStack(jHstacked, list_obs_info[i].jH);
-				double tmp_sigma = 0.2*100/(double)d_gaussian_sphere->points[i].strength;
+				/* double tmp_sigma = 0.2*100/(double)d_gaussian_sphere->points[i].strength; */
+				double tmp_sigma = 5.0e+6/(double)list_lm_info[lm_id].count_match/(double)d_gaussian_sphere->points[i].strength;
 				/* tmp_sigma *= 0.1*list_lm_info[lm_id].count_match; */
 				VectorVStack(Diag_sigma, Eigen::Vector3d(tmp_sigma, tmp_sigma, tmp_sigma));
 				std::cout << "tmp_sigma = " << tmp_sigma << std::endl;
@@ -543,7 +544,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 	X.conservativeResize(X.size() + Xnew.size());
 	X.segment(X.size() - Xnew.size(), Xnew.size()) = Xnew;
 	Eigen::MatrixXd Ptmp = P;
-	const double initial_wall_sigma = 0.01;
+	const double initial_wall_sigma = 1.0e-4;
 	P = initial_wall_sigma*Eigen::MatrixXd::Identity(X.size(), X.size());
 	P.block(0, 0, Ptmp.rows(), Ptmp.cols()) = Ptmp;
 	/*delete marged LM*/
@@ -921,7 +922,7 @@ void WallEKFSLAM::PushBackMarkerPlanes(LMInfo lm_info)
 		tmp.color.r = 1.0;
 		tmp.color.g = 1.0;
 		tmp.color.b = 1.0;
-		tmp.color.a = 0.9;
+		tmp.color.a = 0.2;
 	}
 	else if(lm_info.was_merged){
 		tmp.color.r = 1.0;
@@ -945,7 +946,7 @@ void WallEKFSLAM::PushBackMarkerPlanes(LMInfo lm_info)
 		/* tmp.color.r = 0.5; */
 		/* tmp.color.g = 0.5; */
 		/* tmp.color.b = 0.5; */
-		tmp.color.a = 0.2;
+		tmp.color.a = 0.3;
 	}
 
 	planes.markers.push_back(tmp);

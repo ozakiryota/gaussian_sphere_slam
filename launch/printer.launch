@@ -1,0 +1,15 @@
+<launch>
+	<!-- global rosparam -->
+	<param name="use_sim_time" value="true"/>
+
+	<!-- main -->
+	<node pkg="msg_printer" name="odometry_printer_ekf" type="odometry_printer" output="screen">
+		<remap from="/odom" to="/wall_ekf_slam/odom"/>
+	</node>
+	<node pkg="msg_printer" name="odometry_printer_loam" type="odometry_printer" output="screen">
+		<remap from="/odom" to="/loamvelodyne_odometry"/>
+	</node>
+	<node pkg="msg_printer" name="odometry_printer_gyrodometry" type="odometry_printer" output="screen">
+		<remap from="/odom" to="/gyrodometry"/>
+	</node>
+</launch>
