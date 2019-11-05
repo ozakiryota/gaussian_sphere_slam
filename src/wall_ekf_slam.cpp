@@ -561,7 +561,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 
 	double tmp_time = ros::Time::now().toSec() - time_start;
 	counter++;
-	(avg_computation_time = avg_computation_time*(counter - 1) + tmp_time)/counter;
+	avg_computation_time = (avg_computation_time*(counter - 1) + tmp_time)/(double)counter;
 	std::cout << "Updating: avg_computation_time [s] = " << avg_computation_time << std::endl;
 
 	/*test*/

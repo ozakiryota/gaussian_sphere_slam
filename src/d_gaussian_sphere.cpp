@@ -113,7 +113,7 @@ void DGaussianSphere::CallbackPC(const sensor_msgs::PointCloud2ConstPtr &msg)
 
 	double tmp_time = ros::Time::now().toSec() - time_start;
 	counter++;
-	avg_computation_time = avg_computation_time*(counter - 1) + tmp_time/counter;
+	avg_computation_time = (avg_computation_time*(counter - 1) + tmp_time)/counter;
 	std::cout << "Feature extraction: avg_computation_time [s] = " << avg_computation_time << std::endl;
 
 	Publication();
