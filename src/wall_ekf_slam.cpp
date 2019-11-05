@@ -495,7 +495,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 				VectorVStack(Hstacked, list_obs_info[i].H);
 				MatrixVStack(jHstacked, list_obs_info[i].jH);
 				/* double tmp_sigma = 0.2*100/(double)d_gaussian_sphere->points[i].strength; */
-				double tmp_sigma = 5.0e+6/(double)list_lm_info[lm_id].count_match/(double)d_gaussian_sphere->points[i].strength;
+				double tmp_sigma = 1.0e+7/(double)list_lm_info[lm_id].count_match/(double)d_gaussian_sphere->points[i].strength;
 				/* tmp_sigma *= 0.1*list_lm_info[lm_id].count_match; */
 				VectorVStack(Diag_sigma, Eigen::Vector3d(tmp_sigma, tmp_sigma, tmp_sigma));
 				std::cout << "tmp_sigma = " << tmp_sigma << std::endl;
@@ -544,7 +544,7 @@ void WallEKFSLAM::CallbackDGaussianSphere(const sensor_msgs::PointCloud2ConstPtr
 	X.conservativeResize(X.size() + Xnew.size());
 	X.segment(X.size() - Xnew.size(), Xnew.size()) = Xnew;
 	Eigen::MatrixXd Ptmp = P;
-	const double initial_wall_sigma = 1.0e-4;
+	const double initial_wall_sigma = 1.0e-5;
 	P = initial_wall_sigma*Eigen::MatrixXd::Identity(X.size(), X.size());
 	P.block(0, 0, Ptmp.rows(), Ptmp.cols()) = Ptmp;
 	/*delete marged LM*/
@@ -573,7 +573,7 @@ void WallEKFSLAM::SearchCorrespondObsID(std::vector<ObsInfo>& list_obs_info, int
 	const double threshold_mahalanobis_dist = 0.36;	//chi-square distribution
 	double min_mahalanobis_dist = threshold_mahalanobis_dist;
 	// const double threshold_euclidean_dist = 0.15;	//test
-	const double threshold_euclidean_dist = 0.2;	//test
+	const double threshold_euclidean_dist = 0.15;	//test
 	double min_euclidean_dist = threshold_euclidean_dist;	//test
 	int correspond_id = -1;
 	/*search*/
